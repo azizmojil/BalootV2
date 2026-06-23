@@ -1,4 +1,5 @@
 import numpy as np
+from env.constants import TARGET_SCORE
 
 def flatten_obs(obs_dict):
     """Flattens the observation dictionary into a single numpy array."""
@@ -17,44 +18,55 @@ def get_global_state(env):
     ds_map = {None: 0, 'Double': 1, 'Three': 2, 'Four': 3, 'Gahwa': 4}
 
     def encode_card(card):
-        """Encodes a card tuple (rank, suit) into a single integer."""
+        """Encodes a card tuple into a normalized scalar; 0 represents no/unknown card."""
         if card is None or not isinstance(card, (tuple, list)) or len(card) != 2:
-            return -1 # Represents no card or invalid card
+            return 0.0
         suit, rank = card
         if rank not in rank_map or suit not in suit_map:
-            return -1
-        return rank_map[rank] * 4 + suit_map[suit]
+            return 0.0
+        return ((rank_map[rank] * 4 + suit_map[suit]) + 1) / 32.0
+
+    def encode_player(player):
+        """Encodes a player id into a normalized scalar; 0 represents no player."""
+        return 0.0 if player is None else (player + 1) / 4.0
+
+    def encode_action(action):
+        """Encodes a bidding action into a normalized scalar; 0 represents no bid."""
+        return 0.0 if action is None else (action - 31) / 11.0
 
     # Encode hands (assuming 8 cards per hand at the start)
     all_hands = [encode_card(c) for hand in env.hands for c in hand]
     # Pad hands to a fixed size in case the number of cards changes
     expected_hand_cards = 32 # 4 players * 8 cards
-    all_hands.extend([-1] * (expected_hand_cards - len(all_hands)))
+    all_hands.extend([0.0] * (expected_hand_cards - len(all_hands)))
 
     # Encode bidding info
     bidding_info = [
-        env.bidding_round,
-        env.final_bid if env.final_bid is not None else -1,
-        env.buyer if env.buyer is not None else -1,
-        ds_map.get(env.doubling_state, -1)
+        min(env.bidding_round, 2) / 2.0,
+        min(env.pass_count, 8) / 8.0,
+        encode_action(env.initial_bid),
+        encode_action(env.final_bid),
+        encode_player(env.buyer),
+        ds_map.get(env.doubling_state, 0) / 4.0
     ]
 
     # Encode trick info (4 cards per trick)
     trick_info = [encode_card(c) for c in env.current_trick]
-    trick_info.extend([-1] * (4 - len(trick_info)))
+    trick_info.extend([0.0] * (4 - len(trick_info)))
 
     # Encode game info
     game_info = [
-        env.dealer if env.dealer is not None else -1,
-        env.current_agent,
+        encode_player(env.dealer),
+        encode_player(env.current_agent),
+        encode_player(env.trick_leader),
         phase_map.get(env.phase, -1),
-        gt_map.get(env.game_type, -1),
-        suit_map.get(env.trump_suit, -1),
+        gt_map.get(env.game_type, 0) / 2.0,
+        (suit_map.get(env.trump_suit, -1) + 1) / 4.0,
         encode_card(env.face_up)
     ]
 
     # Scores
-    scores = env.cumulative_scores
+    scores = np.clip(np.array(env.cumulative_scores, dtype=np.float32) / TARGET_SCORE, 0.0, 1.0)
 
     # Concatenate all features into a single vector
     return np.concatenate([

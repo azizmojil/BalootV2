@@ -18,15 +18,15 @@ from utils import flatten_obs, get_global_state
 config = {
     "num_episodes": 10000,
     "update_interval": 4096,      # Min steps per player before an update
-    "start_lr": 3e-4,
+    "start_lr": 1e-4,             # Decreased from 3e-4 to prevent value loss explosion
     "end_lr": 1e-5,
     "gamma": 0.99,
     "clip_range": 0.2,
-    "epochs": 10,
+    "epochs": 4,                  # Decreased from 10 to prevent overfitting to noisy batches
     "batch_size": 1024,
     "gae_lambda": 0.95,
     "start_entropy": 0.05,
-    "end_entropy": 0.01,
+    "end_entropy": 0.02,          # Increased from 0.01 to maintain more exploration
 }
 
 NUM_PLAYERS = 4

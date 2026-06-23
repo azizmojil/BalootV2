@@ -10,10 +10,11 @@ class BalootMultiAgentEnv(gym.Env):
 
     def __init__(self):
         super().__init__()
+        self._rng = random.Random()
         self.cumulative_scores = [0, 0]
         self.round_count = 0
         self.match_over = False
-        self.dealer = random.randint(0, 3)
+        self.dealer = self._rng.randint(0, 3)
         self.action_space = spaces.Discrete(43)
         sample = self.reset()
         spaces_dict = {}
@@ -24,10 +25,13 @@ class BalootMultiAgentEnv(gym.Env):
         self.observation_space = spaces.Dict(spaces_dict)
 
     def reset(self, seed=None, options=None):
+        if seed is not None:
+            super().reset(seed=seed)
+            self._rng.seed(seed)
         self.cumulative_scores = [0, 0]
         self.round_count = 0
         self.match_over = False
-        self.dealer = random.randint(0, 3)
+        self.dealer = self._rng.randint(0, 3)
         return self._reset_round()
 
     def _reset_round(self):
@@ -45,7 +49,7 @@ class BalootMultiAgentEnv(gym.Env):
         self.card_ownership = np.zeros((32, 4, 4), dtype=np.float32)
         self.remaining_cards = np.ones((32,), dtype=np.float32)
         self.deck = create_deck()
-        random.shuffle(self.deck)
+        self._rng.shuffle(self.deck)
         canonical_deck = create_deck()
         self.hands = []
         for p in range(4):
@@ -80,8 +84,19 @@ class BalootMultiAgentEnv(gym.Env):
         ag = self.current_agent
 
         who_am_i = np.eye(4, dtype=np.float32)[ag]
+        dealer = np.eye(4, dtype=np.float32)[self.dealer]
+        partner = np.eye(4, dtype=np.float32)[(ag + 2) % 4]
+        trick_leader = np.eye(4, dtype=np.float32)[self.trick_leader]
+
+        buyer = np.zeros(5, dtype=np.float32)
+        buyer[4 if self.buyer is None else self.buyer] = 1.0
 
         remaining_tricks = np.array([len(self.hands[ag]) / 8.0], dtype=np.float32)
+        bidding_progress = np.array([
+            min(self.bidding_round, 2) / 2.0,
+            min(self.pass_count, 8) / 8.0
+        ], dtype=np.float32)
+        score_context = np.clip(np.array(self.cumulative_scores, dtype=np.float32) / TARGET_SCORE, 0.0, 1.0)
 
         faceup_feat = one_hot_card(self.face_up)
 
@@ -90,6 +105,9 @@ class BalootMultiAgentEnv(gym.Env):
 
         gt_map = {None: 0, 'Sun': 1, 'Hukoom': 2}
         game_type = np.eye(3, dtype=np.float32)[gt_map[self.game_type]].flatten()
+
+        trump_map = {None: 0, '♠': 1, '♥': 2, '♦': 3, '♣': 4}
+        trump_suit = np.eye(5, dtype=np.float32)[trump_map[self.trump_suit]].flatten()
 
         ds_map = {None: 0, 'Double': 1, 'Three': 2, 'Four': 3, 'Gahwa': 4}
         doubling = np.eye(5, dtype=np.float32)[ds_map[self.doubling_state]].flatten()
@@ -101,6 +119,11 @@ class BalootMultiAgentEnv(gym.Env):
                                      if c is not None
                                      else np.zeros(32, dtype=np.float32)
                                      for c in self.current_trick])
+        last_trick_feat = np.concatenate([one_hot_card(c)
+                                          if c is not None
+                                          else np.zeros(32, dtype=np.float32)
+                                          for c in self.last_trick])
+        played_cards = (1.0 - self.remaining_cards).astype(np.float32)
 
         declared = (self.declared_sets / 2).astype(np.float32).flatten()
         revealed = (self.revealed_sets / 2).astype(np.float32).flatten()
@@ -109,14 +132,23 @@ class BalootMultiAgentEnv(gym.Env):
                 else self._playing_action()).astype(np.float32)
 
         return {'identity': who_am_i,
+                'dealer': dealer,
+                'partner': partner,
+                'buyer': buyer,
+                'trick_leader': trick_leader,
                 'countdown': remaining_tricks,
+                'bidding_progress': bidding_progress,
+                'score_context': score_context,
                 'faceup_card': faceup_feat,
                 'phase': phase,
                 'game_type': game_type,
+                'trump_suit': trump_suit,
                 'doubling': doubling,
                 'remaining_cards': self.remaining_cards,
+                'played_cards': played_cards,
                 'cards_ownership': own_knowledge_flat,
                 'trick': trick_feat,
+                'last_trick': last_trick_feat,
                 'declared_sets': declared,
                 'revealed_sets': revealed,
                 'action_mask': mask}

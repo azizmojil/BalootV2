@@ -338,7 +338,8 @@ class BalootMultiAgentEnv(gym.Env):
             raise ValueError(f"Agent {acting_agent} attempted invalid action {action} in phase '{self.phase}'.")
             
         if self.phase == "bidding":
-            bidding_reward = calculate_bidding_reward(self, acting_agent, action) # Must be before _bidding_step
+            # Calculate before _bidding_step mutates the bidder, phase, and hand state.
+            bidding_reward = calculate_bidding_reward(self, acting_agent, action)
             self._bidding_step(acting_agent, action)
 
             # Check for failed round condition
@@ -438,8 +439,9 @@ class BalootMultiAgentEnv(gym.Env):
 
         self.last_round_score = final.copy()
         self.final_scores = final.copy()
-        diff0 = (final[0] - final[1]) / TARGET_SCORE
-        diff1 = (final[1] - final[0]) / TARGET_SCORE
+        reward_scale = max(float(TARGET_SCORE), 1.0)
+        diff0 = (final[0] - final[1]) / reward_scale
+        diff1 = (final[1] - final[0]) / reward_scale
         rewards = {f"player_{i}": float(diff0 if team(i) == 0 else diff1) for i in range(4)}
 
         return rewards

@@ -117,7 +117,7 @@ def calculate_bidding_reward(env, agent_id, action):
     if high_card_count >= 4:
         return 0.12
     elif high_card_count >= 3:
-        return 0.08
+        return 0.10
     elif high_card_count >= 2:
         return 0.03
     else:

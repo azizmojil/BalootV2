@@ -19,11 +19,15 @@ class MAPPOAgent:
         self.model = model_builder(local_obs_dim, global_state_dim, act_dim, dropout_rate)
         self.optimizer = Adam(learning_rate=lr)
         self.value_func = self.get_value_for_single_obs # Start with the single-obs version
+        self.last_update_stats = {}
 
     def select_action(self, local_obs, global_state, mask):
+        if not np.any(mask > 0):
+            raise ValueError("Cannot select an action because the action mask has no valid actions.")
+
         local_obs_t = tf.convert_to_tensor(local_obs[None, :], dtype=tf.float32)
         global_state_t = tf.convert_to_tensor(global_state[None, :], dtype=tf.float32)
-        mask_t = tf.convert_to_tensor(mask[None, :], dtype=tf.float32)
+        mask_t = tf.convert_to_tensor(mask, dtype=tf.float32)
         
         logits, value = self.model([local_obs_t, global_state_t], training=False)
         logits = tf.squeeze(logits, axis=0)
@@ -31,11 +35,10 @@ class MAPPOAgent:
         
         # Apply mask for action selection
         very_negative = -1e10 * tf.ones_like(logits)
-        masked_logits = tf.where(mask > 0, logits, very_negative)
+        masked_logits = tf.where(mask_t > 0, logits, very_negative)
 
         # Sample action from the masked distribution
-        action_dist = tf.nn.softmax(masked_logits)
-        action_tensor = tf.random.categorical(tf.math.log(action_dist[None, :]), num_samples=1)
+        action_tensor = tf.random.categorical(tf.nn.log_softmax(masked_logits)[None, :], num_samples=1)
         action = int(tf.squeeze(action_tensor).numpy())
 
         # The log probability must come from the masked distribution
@@ -73,6 +76,8 @@ class MAPPOAgent:
         global_states = np.array(memory["global_states"], dtype=np.float32)
         masks = np.array(memory["action_masks"], dtype=np.float32)
         actions = np.array(memory["actions"], dtype=np.int32)
+        if len(actions) == 0:
+            raise ValueError("Cannot update MAPPOAgent with an empty memory buffer.")
         old_log_probs = np.array(memory["log_probs"], dtype=np.float32).flatten()
         old_values = np.array(memory["values"], dtype=np.float32).flatten()
         advantages = np.array(memory["advantages"], dtype=np.float32).flatten()
@@ -103,6 +108,10 @@ class MAPPOAgent:
                 # Calculate ratio in log-space and clip for stability
                 log_ratio = new_log_probs - tf.stop_gradient(batch_old_log_probs)
                 ratio = tf.exp(log_ratio)
+                clip_fraction = tf.reduce_mean(
+                    tf.cast(tf.abs(ratio - 1.0) > self.clip_range, tf.float32)
+                )
+                approx_kl = tf.reduce_mean(tf.stop_gradient(batch_old_log_probs) - new_log_probs)
                 
                 surr1 = ratio * batch_advantages
                 surr2 = tf.clip_by_value(ratio, 1 - self.clip_range, 1 + self.clip_range) * batch_advantages
@@ -127,22 +136,38 @@ class MAPPOAgent:
             grads = tape.gradient(loss, self.model.trainable_variables)
             grads, _ = tf.clip_by_global_norm(grads, 0.5)
             self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
-            return loss, policy_loss, value_loss, entropy
+            return loss, policy_loss, value_loss, entropy, approx_kl, clip_fraction
 
         total_loss, total_policy_loss, total_value_loss, total_entropy = 0.0, 0.0, 0.0, 0.0
+        total_kl, total_clip_fraction = 0.0, 0.0
         num_batches = 0
         for epoch in range(self.epochs):
             for batch_data in dataset:
-                loss, policy_loss, value_loss, entropy = train_step(*batch_data)
+                loss, policy_loss, value_loss, entropy, approx_kl, clip_fraction = train_step(*batch_data)
                 total_loss += loss
                 total_policy_loss += policy_loss
                 total_value_loss += value_loss
                 total_entropy += entropy
+                total_kl += approx_kl
+                total_clip_fraction += clip_fraction
                 num_batches += 1
 
         avg_loss = total_loss / num_batches
         avg_policy_loss = total_policy_loss / num_batches
         avg_value_loss = total_value_loss / num_batches
         avg_entropy = total_entropy / num_batches
+        avg_kl = total_kl / num_batches
+        avg_clip_fraction = total_clip_fraction / num_batches
+
+        _, predicted_values = self.model([local_states, global_states], training=False)
+        predicted_values = np.array(predicted_values, dtype=np.float32).flatten()
+        explained_variance = 1.0 - (
+            np.var(returns - predicted_values) / (np.var(returns) + 1e-8)
+        )
+        self.last_update_stats = {
+            "approx_kl": float(avg_kl.numpy()),
+            "clip_fraction": float(avg_clip_fraction.numpy()),
+            "explained_variance": float(explained_variance),
+        }
 
         return avg_loss.numpy(), avg_policy_loss.numpy(), avg_value_loss.numpy(), avg_entropy.numpy()

@@ -228,6 +228,9 @@ if __name__ == "__main__":
                 tf.summary.scalar("Loss/Policy", policy_loss, step=update_count)
                 tf.summary.scalar("Loss/Value", value_loss, step=update_count)
                 tf.summary.scalar("Loss/Entropy", entropy, step=update_count)
+                tf.summary.scalar("PPO/ApproxKL", agent.last_update_stats.get("approx_kl", 0.0), step=update_count)
+                tf.summary.scalar("PPO/ClipFraction", agent.last_update_stats.get("clip_fraction", 0.0), step=update_count)
+                tf.summary.scalar("PPO/ExplainedVariance", agent.last_update_stats.get("explained_variance", 0.0), step=update_count)
                 tf.summary.scalar("Reward/Avg_T0_per_Update", avg_t0, step=update_count)
                 tf.summary.scalar("Reward/Avg_T1_per_Update", avg_t1, step=update_count)
                 tf.summary.scalar("Params/LearningRate", new_lr, step=update_count)
@@ -237,7 +240,9 @@ if __name__ == "__main__":
             tqdm.write(
                 f"Update {update_count:4d} (Ep {ep:5d}) | "
                 f"Loss: {loss:.3f} | Pol: {policy_loss:.3f} | Val: {value_loss:.3f} | "
-                f"Ent: {entropy:.3f} | Avg T0: {avg_t0:.1f} | Avg T1: {avg_t1:.1f}"
+                f"Ent: {entropy:.3f} | KL: {agent.last_update_stats.get('approx_kl', 0.0):.4f} | "
+                f"Clip: {agent.last_update_stats.get('clip_fraction', 0.0):.2f} | "
+                f"Avg T0: {avg_t0:.1f} | Avg T1: {avg_t1:.1f}"
             )
 
             # ─── Save checkpoints periodically ────────────────────────────────

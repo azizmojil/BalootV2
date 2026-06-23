@@ -4,26 +4,39 @@ import numpy as np
 # These values are hyperparameters and can be tuned.
 
 # 1. Game-Level Rewards (The most important signal)
-REWARD_WIN_GAME = 200.0
-REWARD_LOSE_GAME = -200.0
+REWARD_WIN_GAME = 10.0
+REWARD_LOSE_GAME = -10.0
 
 # 2. Round-Level Rewards (For making/breaking the contract)
-REWARD_CONTRACT_SUCCESS = 3.0
+REWARD_CONTRACT_SUCCESS = 2.0
 
 # 3. Trick-Level Rewards (Frequent, smaller signals)
-REWARD_WIN_TRICK_BASE = 0.2
-REWARD_TRICK_POINT_SCALAR = 0.01  # Scales reward with points won
+REWARD_WIN_TRICK_BASE = 0.05
+REWARD_TRICK_POINT_SCALAR = 0.002  # Scales reward with points won
 
 # 4. Action-shaping rewards
-REWARD_PASS_PENALTY = -0.1 # Small penalty to discourage always passing
-REWARD_BID_SET_BONUS = { # Reward for bidding with a good set in hand
-    "Sera": 0.1, "Khamseen": 0.2, "Mia_c": 0.4, "Mia_s": 0.4, "Arbamia": 0.5
-}
-REWARD_ALL_PASS_PENALTY = -1.0 # Penalty if a round fails because everyone passed
+REWARD_ALL_PASS_PENALTY = -0.1 # Penalty if a round fails because everyone passed
 
 
 SUN_CARD_POINTS = {'A': 11, '10': 10, 'K': 4, 'Q': 3, 'J': 2, '9': 0, '8': 0, '7': 0}
 HUKOOM_CARD_POINTS = {'J': 20, '9': 14, 'A': 11, '10': 10, 'K': 4, 'Q': 3, '8': 0, '7': 0}
+# Set bonuses mirror Baloot declarations: runs (Sera/Khamseen/Mia_c) and four-of-a-kind (Mia_s/Arbamia).
+BIDDING_SET_STRENGTH_BONUS = {
+    "Sera": 20, "Khamseen": 50, "Mia_c": 100, "Mia_s": 100, "Arbamia": 200
+}
+# Strength is raw 6-card point potential plus set/trump-control bonuses; >50 is a strong buy.
+BIDDING_STRONG_HAND_THRESHOLD = 50
+BIDDING_MONSTER_HAND_THRESHOLD = 80
+BIDDING_WEAK_HAND_THRESHOLD = 35
+BIDDING_CLOSE_CHOICE_MARGIN = 8
+BIDDING_TRUMP_JACK_BONUS = 20
+BIDDING_TRUMP_NINE_BONUS = 10
+PASS_ACTION = 32
+SUN_ACTION = 33
+PARTNER_SUN_ACTION = 38
+BIDDING_SUIT_ACTIONS = {34: '♠', 35: '♥', 36: '♦', 37: '♣'}
+BIDDING_BUY_ACTIONS = (SUN_ACTION, PARTNER_SUN_ACTION, *BIDDING_SUIT_ACTIONS.keys())
+ALL_REWARDED_BIDDING_ACTIONS = (PASS_ACTION, *BIDDING_BUY_ACTIONS)
 
 
 def get_card_points(card, game_type, trump_suit):
@@ -38,6 +51,106 @@ def get_card_points(card, game_type, trump_suit):
     except (TypeError, ValueError):
         # Handles cases where card is None or not a valid tuple
         return 0
+
+
+def _get_augmented_bidding_hand(env, agent_id, receives_face_up=True):
+    """Return a bidding hand, optionally augmented with the face-up card the buyer receives."""
+    hand = list(env.hands[agent_id])
+    face_up = env.face_up
+    if receives_face_up and face_up is not None and face_up not in hand:
+        hand.append(face_up)
+    return hand
+
+
+def _get_detected_sets(hand):
+    """Import lazily to avoid the existing utils/rewards circular import."""
+    from env.utils import detect_sets
+    return detect_sets(hand)
+
+
+def _set_strength_bonus(hand):
+    return sum(BIDDING_SET_STRENGTH_BONUS.get(s["type"], 0) for s in _get_detected_sets(hand))
+
+
+def _calculate_sun_bidding_strength(hand):
+    card_points = sum(SUN_CARD_POINTS.get(rank, 0) for suit, rank in hand)
+    return card_points + _set_strength_bonus(hand)
+
+
+def _calculate_hukoom_bidding_strength(hand, trump_suit):
+    score = sum(get_card_points(card, "Hukoom", trump_suit) for card in hand)
+    score += _set_strength_bonus(hand)
+    if (trump_suit, "J") in hand:
+        score += BIDDING_TRUMP_JACK_BONUS
+    if (trump_suit, "9") in hand:
+        score += BIDDING_TRUMP_NINE_BONUS
+    return score
+
+
+def _calculate_bidding_strengths(env, agent_id, receives_face_up=True):
+    hand = _get_augmented_bidding_hand(env, agent_id, receives_face_up)
+    hukoom_scores = {
+        suit: _calculate_hukoom_bidding_strength(hand, suit)
+        for suit in BIDDING_SUIT_ACTIONS.values()
+    }
+    return {
+        "Sun": _calculate_sun_bidding_strength(hand),
+        "Hukoom": hukoom_scores,
+        "best_hukoom": max(hukoom_scores.values()),
+    }
+
+
+def _reward_for_passing(best_strength):
+    """Reward passing weak hands and penalize passing strong or monster buying potential."""
+    if best_strength >= BIDDING_MONSTER_HAND_THRESHOLD:
+        return -0.12
+    if best_strength >= BIDDING_STRONG_HAND_THRESHOLD:
+        return -0.06
+    if best_strength < BIDDING_WEAK_HAND_THRESHOLD:
+        return 0.03
+    return 0.0
+
+
+def _has_available_buy_action(env):
+    if not hasattr(env, "_bidding_mask"):
+        return True
+    bidding_mask = env._bidding_mask()
+    return any(bidding_mask[action] == 1 for action in BIDDING_BUY_ACTIONS)
+
+
+def _partner_id(agent_id):
+    return (agent_id + 2) % 4
+
+
+def _reward_for_sun_bid(strengths):
+    """Grade a Sun bid using strengths['Sun'] versus strengths['best_hukoom']."""
+    sun_score = strengths["Sun"]
+    best_hukoom = strengths["best_hukoom"]
+    if sun_score < BIDDING_WEAK_HAND_THRESHOLD:
+        return -0.08
+    if sun_score >= BIDDING_STRONG_HAND_THRESHOLD:
+        if sun_score + BIDDING_CLOSE_CHOICE_MARGIN < best_hukoom:
+            return -0.04
+        return 0.12
+    if best_hukoom >= BIDDING_STRONG_HAND_THRESHOLD:
+        return -0.04
+    return 0.02
+
+
+def _reward_for_hukoom_bid(strengths, trump_suit):
+    """Grade a Hukoom suit bid against the best Hukoom suit and Sun alternative."""
+    suit_score = strengths["Hukoom"][trump_suit]
+    best_hukoom = strengths["best_hukoom"]
+    sun_score = strengths["Sun"]
+    if suit_score < BIDDING_WEAK_HAND_THRESHOLD:
+        return -0.08
+    if suit_score + BIDDING_CLOSE_CHOICE_MARGIN < best_hukoom:
+        return -0.05
+    if suit_score >= BIDDING_STRONG_HAND_THRESHOLD:
+        if sun_score > suit_score + BIDDING_CLOSE_CHOICE_MARGIN:
+            return -0.04
+        return 0.12
+    return 0.02
 
 
 def calculate_trick_reward(trick_cards, trick_winner, game_type, trump_suit):
@@ -99,26 +212,29 @@ def calculate_end_of_round_reward(env):
 def calculate_bidding_reward(env, agent_id, action):
     """
     Calculates an immediate reward during the bidding phase.
-    - Penalizes passing.
-    - Rewards bidding when the agent has strong cards.
+    Grades pass, Sun, and Hukoom actions against the hand's Sun/Hukoom potential.
     """
-    # Action 32 is "Pass"
-    if action == 32:
-        return REWARD_PASS_PENALTY
+    if action not in ALL_REWARDED_BIDDING_ACTIONS:
+        return 0.0
 
-    # If the agent made a bid (not a pass), give a small positive signal.
-    # We can't use declared_sets_info here because it's not populated until
-    # bidding ends. Instead, use a simple heuristic based on high cards.
-    agent_hand = env.hands[agent_id]
-    high_card_count = sum(1 for (suit, rank) in agent_hand if rank in ('A', 'K', 'Q', 'J'))
-    
-    # Scale reward by hand quality
-    if high_card_count >= 3:
-        return 0.3
-    elif high_card_count >= 2:
-        return 0.15
-    else:
-        return 0.05
+    if action == PASS_ACTION and not _has_available_buy_action(env):
+        return 0.0
+
+    # PARTNER_SUN_ACTION sends the buy to the partner, so score the hand that receives face_up.
+    scoring_agent = _partner_id(agent_id) if action == PARTNER_SUN_ACTION else agent_id
+    strengths = _calculate_bidding_strengths(env, scoring_agent)
+
+    if action == PASS_ACTION:
+        best_strength = max(strengths["Sun"], strengths["best_hukoom"])
+        return _reward_for_passing(best_strength)
+
+    if action in (SUN_ACTION, PARTNER_SUN_ACTION):
+        return _reward_for_sun_bid(strengths)
+
+    if action in BIDDING_SUIT_ACTIONS:
+        return _reward_for_hukoom_bid(strengths, BIDDING_SUIT_ACTIONS[action])
+
+    return 0.0
 
 
 def calculate_end_of_game_reward(env):
@@ -128,10 +244,11 @@ def calculate_end_of_game_reward(env):
             return rewards
 
         # Determine winning team based on cumulative scores
-        if env.cumulative_scores[0] >= env.cumulative_scores[1]:
-            winning_team_id = 0
-        else:
-            winning_team_id = 1
+        score_delta = env.cumulative_scores[0] - env.cumulative_scores[1]
+        if score_delta == 0:
+            # Tied matches get no terminal win/loss shaping.
+            return rewards
+        winning_team_id = 0 if score_delta > 0 else 1
 
         for player_id in range(4):
             if player_id % 2 == winning_team_id:

@@ -332,13 +332,15 @@ class BalootMultiAgentEnv(gym.Env):
 
     def step(self, action):
         # --- Strict Action Validation ---
+        acting_agent = self.current_agent
         obs_dict = self.get_observation()
         if obs_dict["action_mask"][action] == 0:
-            raise ValueError(f"Agent {self.current_agent} attempted invalid action {action} in phase '{self.phase}'.")
+            raise ValueError(f"Agent {acting_agent} attempted invalid action {action} in phase '{self.phase}'.")
             
         if self.phase == "bidding":
-            bidding_reward = calculate_bidding_reward(self, self.current_agent, action) # Must be before _bidding_step
-            self._bidding_step(self.current_agent, action)
+            # Calculate before _bidding_step mutates the bidder, phase, and hand state.
+            bidding_reward = calculate_bidding_reward(self, acting_agent, action)
+            self._bidding_step(acting_agent, action)
 
             # Check for failed round condition
             if self.pass_count >= 8:
@@ -347,10 +349,13 @@ class BalootMultiAgentEnv(gym.Env):
                 self._reset_round()
             else:
                 rewards = {f"player_{i}": 0.0 for i in range(4)}
-                rewards[f"player_{self.current_agent}"] = bidding_reward
+                rewards[f"player_{acting_agent}"] = bidding_reward
                 dones = {f"player_{i}": False for i in range(4)}
         else:
-            self._playing_step(self.current_agent, action)
+            previous_trick_count = self.trick_count
+            self._playing_step(acting_agent, action)
+            # A single play can complete at most one trick.
+            trick_completed = self.trick_count != previous_trick_count
             if self.trick_count >= 8:
                 rewards = self._compute_score()
                 self._update_cumulative_scores()
@@ -363,9 +368,17 @@ class BalootMultiAgentEnv(gym.Env):
                     if hasattr(self, "last_trick_reward"):
                         rewards[f"player_{i}"] += self.last_trick_reward[f"player_{i}"]
 
+                if self.match_over:
+                    match_rewards = calculate_end_of_game_reward(self)
+                    for i in range(4):
+                        rewards[f"player_{i}"] += match_rewards[i]
+
                 self._reset_round()
             else:
-                rewards = getattr(self, "last_trick_reward", {f"player_{i}": 0.0 for i in range(4)})
+                if trick_completed:
+                    rewards = getattr(self, "last_trick_reward", {f"player_{i}": 0.0 for i in range(4)})
+                else:
+                    rewards = {f"player_{i}": 0.0 for i in range(4)}
                 dones = {f"player_{i}": False for i in range(4)}
         obs_dict = self.get_observation()
         infos = {f"player_{i}": {"cumulative_scores": self.cumulative_scores} for i in range(4)}
@@ -427,14 +440,13 @@ class BalootMultiAgentEnv(gym.Env):
 
         self.last_round_score = final.copy()
         self.final_scores = final.copy()
-        diff0 = final[0] - final[1]
-        diff1 = final[1] - final[0]
+        # Normalize round score-difference rewards by the match target score.
+        reward_scale = float(TARGET_SCORE)
+        if reward_scale <= 1.0:
+            raise ValueError(f"TARGET_SCORE must be greater than 1.0 for reward normalization. Current value: {reward_scale}")
+        diff0 = (final[0] - final[1]) / reward_scale
+        diff1 = (final[1] - final[0]) / reward_scale
         rewards = {f"player_{i}": float(diff0 if team(i) == 0 else diff1) for i in range(4)}
-
-        if self.match_over:
-            match_r = calculate_end_of_game_reward(self)
-            for p_idx in range(4):
-                rewards[f"player_{p_idx}"] += match_r[p_idx]
 
         return rewards
 

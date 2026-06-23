@@ -7,6 +7,7 @@ from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, c
 
 class BalootMultiAgentEnv(gym.Env):
     metadata = {"render_modes": ["human"]}
+    # Ownership-belief inference constants.
     INFERENCE_EPSILON = 1e-3
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
 
@@ -136,7 +137,7 @@ class BalootMultiAgentEnv(gym.Env):
                     continue
                 if self._is_known_to_observer(card_idx, observer):
                     continue
-                if total_hidden_slots <= 0:
+                if total_hidden_slots < 0:
                     raise ValueError(
                         "Cannot assign ownership belief for an unknown remaining card when no hidden "
                         "hand slots are available. This likely indicates a logic error in card tracking "
@@ -145,6 +146,8 @@ class BalootMultiAgentEnv(gym.Env):
                         f"total_hidden_slots={total_hidden_slots}, hidden_slots={hidden_slots.tolist()}, "
                         f"hand_sizes={hand_sizes.tolist()}, known_remaining={known_remaining.tolist()}"
                     )
+                if np.isclose(total_hidden_slots, 0.0, rtol=0, atol=self.INFERENCE_EPSILON):
+                    continue
 
                 prior = self.card_ownership[card_idx, :, observer] * hidden_slots
                 prior_sum = prior.sum()
@@ -622,7 +625,7 @@ class BalootMultiAgentEnv(gym.Env):
 
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
-                  and np.isclose(self.card_ownership[c, :, agent].sum(), 1.0, atol=eps)
+                  and np.isclose(self.card_ownership[c, :, agent].sum(), 1.0, rtol=0, atol=eps)
                   and not np.any(np.isclose(self.card_ownership[c, :, agent], 1.0))]
 
         for player in range(4):

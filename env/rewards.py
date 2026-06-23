@@ -29,7 +29,11 @@ BIDDING_WEAK_HAND_THRESHOLD = 35
 BIDDING_CLOSE_CHOICE_MARGIN = 8
 BIDDING_TRUMP_JACK_BONUS = 20
 BIDDING_TRUMP_NINE_BONUS = 10
+PASS_ACTION = 32
+SUN_ACTION = 33
+PARTNER_SUN_ACTION = 38
 BIDDING_SUIT_ACTIONS = {34: '♠', 35: '♥', 36: '♦', 37: '♣'}
+BIDDING_BUY_ACTIONS = (SUN_ACTION, PARTNER_SUN_ACTION, *BIDDING_SUIT_ACTIONS.keys())
 
 
 def get_card_points(card, game_type, trump_suit):
@@ -105,7 +109,11 @@ def _has_available_buy_action(env):
     if not hasattr(env, "_bidding_mask"):
         return True
     bidding_mask = env._bidding_mask()
-    return any(bidding_mask[action] == 1 for action in (33, 34, 35, 36, 37, 38))
+    return any(bidding_mask[action] == 1 for action in BIDDING_BUY_ACTIONS)
+
+
+def _partner_id(agent_id):
+    return (agent_id + 2) % 4
 
 
 def _reward_for_sun_bid(strengths):
@@ -198,21 +206,21 @@ def calculate_bidding_reward(env, agent_id, action):
     Calculates an immediate reward during the bidding phase.
     Grades pass, Sun, and Hukoom actions against the hand's Sun/Hukoom potential.
     """
-    if action not in (32, 33, 38) and action not in BIDDING_SUIT_ACTIONS:
+    if action not in (PASS_ACTION, SUN_ACTION, PARTNER_SUN_ACTION) and action not in BIDDING_SUIT_ACTIONS:
         return 0.0
 
-    if action == 32 and not _has_available_buy_action(env):
+    if action == PASS_ACTION and not _has_available_buy_action(env):
         return 0.0
 
-    # Action 38 buys Sun for the acting agent's partner.
-    scoring_agent = (agent_id + 2) % 4 if action == 38 else agent_id
+    # PARTNER_SUN_ACTION buys Sun for the acting agent's partner.
+    scoring_agent = _partner_id(agent_id) if action == PARTNER_SUN_ACTION else agent_id
     strengths = _calculate_bidding_strengths(env, scoring_agent)
 
-    if action == 32:
+    if action == PASS_ACTION:
         best_strength = max(strengths["Sun"], strengths["best_hukoom"])
         return _reward_for_passing(best_strength)
 
-    if action in (33, 38):
+    if action in (SUN_ACTION, PARTNER_SUN_ACTION):
         return _reward_for_sun_bid(strengths)
 
     if action in BIDDING_SUIT_ACTIONS:

@@ -20,5 +20,5 @@ logs/
 *.tar.gz
 *.rar
 
-# Models
-# models/
+Models
+models/

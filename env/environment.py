@@ -2,7 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import random
 from env.utils import *
-from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, calculate_end_of_game_reward, calculate_bidding_reward, REWARD_ALL_PASS_PENALTY
+from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, calculate_end_of_game_reward, calculate_bidding_reward, REWARD_ALL_PASS_PENALTY, HIGH_CARD_RANKS
 
 
 class BalootMultiAgentEnv(gym.Env):
@@ -52,7 +52,7 @@ class BalootMultiAgentEnv(gym.Env):
             hand = [self.deck.pop(0) for _ in range(5)]
             self.hands.append(hand)
         self.hand_high_card_counts = [
-            sum(1 for (suit, rank) in hand if rank in ('A', 'K', 'Q', 'J'))
+            sum(1 for (suit, rank) in hand if rank in HIGH_CARD_RANKS)
             for hand in self.hands
         ]
         for p, hand in enumerate(self.hands):
@@ -444,7 +444,9 @@ class BalootMultiAgentEnv(gym.Env):
         self.last_round_score = final.copy()
         self.final_scores = final.copy()
         # Normalize round score-difference rewards by the match target score.
-        reward_scale = max(float(TARGET_SCORE), 1.0)
+        reward_scale = float(TARGET_SCORE)
+        if reward_scale < 1.0:
+            raise ValueError("TARGET_SCORE must be at least 1.0 to normalize rewards.")
         diff0 = (final[0] - final[1]) / reward_scale
         diff1 = (final[1] - final[0]) / reward_scale
         rewards = {f"player_{i}": float(diff0 if team(i) == 0 else diff1) for i in range(4)}

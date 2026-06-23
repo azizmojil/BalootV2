@@ -16,6 +16,8 @@ REWARD_TRICK_POINT_SCALAR = 0.002  # Scales reward with points won
 
 # 4. Action-shaping rewards
 REWARD_PASS_PENALTY = -0.02 # Small penalty to discourage always passing
+HIGH_CARD_RANKS = ('A', 'K', 'Q', 'J')
+PASS_PENALTY_HIGH_CARD_THRESHOLD = 3
 REWARD_BID_SET_BONUS = { # Reward for bidding with a good set in hand
     "Sera": 0.1, "Khamseen": 0.2, "Mia_c": 0.4, "Mia_s": 0.4, "Arbamia": 0.5
 }
@@ -107,11 +109,11 @@ def calculate_bidding_reward(env, agent_id, action):
         high_card_count = high_card_counts[agent_id]
     else:
         agent_hand = env.hands[agent_id]
-        high_card_count = sum(1 for (suit, rank) in agent_hand if rank in ('A', 'K', 'Q', 'J'))
+        high_card_count = sum(1 for (suit, rank) in agent_hand if rank in HIGH_CARD_RANKS)
 
     # Action 32 is "Pass"
     if action == 32:
-        return REWARD_PASS_PENALTY if high_card_count >= 3 else 0.0
+        return REWARD_PASS_PENALTY if high_card_count >= PASS_PENALTY_HIGH_CARD_THRESHOLD else 0.0
 
     # If the agent made a bid (not a pass), give a small positive signal.
     # We can't use declared_sets_info here because it's not populated until

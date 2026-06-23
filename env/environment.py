@@ -45,7 +45,7 @@ class BalootMultiAgentEnv(gym.Env):
         self.initial_bid = None
         self.final_bid = None
         self.doubling_state = None
-        self.original_doubler = None
+        self.last_doubler = None
         self.buyer = None
         self.game_type = None
         self.trump_suit = None
@@ -241,7 +241,7 @@ class BalootMultiAgentEnv(gym.Env):
                                                 agent=self.current_agent,
                                                 cumulative_scores=self.cumulative_scores,
                                                 current_doubling_state=self.doubling_state,
-                                                original_doubler=self.original_doubler)
+                                                last_doubler=self.last_doubler)
 
         if self.doubling_state is None:
             return np.maximum(overbid_mask, doubling_mask)
@@ -285,8 +285,6 @@ class BalootMultiAgentEnv(gym.Env):
         else:
             if action in (39, 40, 41, 42):
                 doubling_map = {39: "Double", 40: "Three", 41: "Four", 42: "Gahwa"}
-                if self.doubling_state is not None:
-                    self.original_doubler = agent
                 self.doubling_state = doubling_map[action]
                 self.last_doubler = agent
                 self.pass_count = 0

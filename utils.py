@@ -45,13 +45,10 @@ def get_global_state(env):
             return 1.0
         return (suit_map[suit] + 1) / 5.0
 
-    # Encode hands (assuming 8 cards per hand at the start)
     all_hands = [encode_card(c) for hand in env.hands for c in hand]
-    # Pad hands to a fixed size in case the number of cards changes
     expected_hand_cards = 32 # 4 players * 8 cards
     all_hands.extend([0.0] * (expected_hand_cards - len(all_hands)))
 
-    # Encode bidding info
     bidding_info = [
         min(env.bidding_round, 2) / 2.0,
         min(env.pass_count, 8) / 8.0,
@@ -61,11 +58,9 @@ def get_global_state(env):
         ds_map.get(env.doubling_state, 0) / 4.0
     ]
 
-    # Encode trick info (4 cards per trick)
     trick_info = [encode_card(c) for c in env.current_trick]
     trick_info.extend([0.0] * (4 - len(trick_info)))
 
-    # Encode game info
     game_info = [
         encode_player(env.dealer),
         encode_player(env.current_agent),
@@ -79,7 +74,6 @@ def get_global_state(env):
     # Scores
     scores = np.array(env.cumulative_scores, dtype=np.float32) / TARGET_SCORE
 
-    # Concatenate all features into a single vector
     return np.concatenate([
         np.array(all_hands, dtype=np.float32),
         np.array(bidding_info, dtype=np.float32),

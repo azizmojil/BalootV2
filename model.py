@@ -31,7 +31,6 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim):
     policy_logits = Dense(act_dim, kernel_initializer=Orthogonal(gain=0.01),
                           bias_initializer=bias_init, name='policy_logits')(actor_net)
 
-    # --- CRITIC (Value) Stream - uses BOTH local obs and global state ---
     global_net = Dense(512, kernel_initializer=hidden_init(), bias_initializer=bias_init)(global_state_input)
     global_net = LayerNormalization()(global_net)
     global_net = LeakyReLU(alpha=0.01)(global_net)

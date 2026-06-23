@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baloot AI Web Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .card { 
+            transition: all 0.2s ease; 
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(30,41,59,0.8);
+            backdrop-filter: blur(10px);
+        }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .bg-gradient { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 bg-gradient">
+    <header class="flex justify-between items-center mb-6 pb-4 border-b border-slate-700">
+        <div>
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Baloot V2 AI</h1>
+            <p class="text-sm text-slate-400">Play against MAPPO Agents</p>
+        </div>
+        <div class="flex gap-4">
+            <div class="bg-slate-800 px-4 py-2 rounded-lg card">
+                <span class="text-slate-400 text-sm">Team 0 (You):</span> 
+                <span id="score-t0" class="font-bold text-emerald-400 ml-2">0</span>
+            </div>
+            <div class="bg-slate-800 px-4 py-2 rounded-lg card">
+                <span class="text-slate-400 text-sm">Team 1 (AI):</span> 
+                <span id="score-t1" class="font-bold text-rose-400 ml-2">0</span>
+            </div>
+            <button onclick="startGame()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/30">New Game</button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 gap-6">
+        <!-- Main Game Area -->
+        <main class="flex-1 flex flex-col">
+            <!-- Game Info -->
+            <div id="game-info" class="flex justify-between items-center bg-slate-800/50 p-4 rounded-xl mb-6 border border-slate-700 hidden">
+                <div class="flex gap-6">
+                    <div><span class="text-slate-400 text-sm">Phase:</span> <span id="phase" class="font-semibold text-yellow-400"></span></div>
+                    <div><span class="text-slate-400 text-sm">Dealer:</span> <span id="dealer" class="font-semibold"></span></div>
+                </div>
+                <div id="contract-info" class="hidden flex gap-4 text-sm bg-slate-900/50 px-4 py-2 rounded-lg">
+                    <div>Contract: <span id="contract" class="font-bold text-yellow-400"></span></div>
+                    <div>Buyer: <span id="buyer" class="font-bold"></span></div>
+                    <div>Trump: <span id="trump" class="font-bold text-red-400"></span></div>
+                </div>
+            </div>
+
+            <!-- Table / Trick Area -->
+            <div class="flex-1 flex items-center justify-center min-h-[300px] mb-6 relative">
+                <div class="w-[400px] h-[400px] rounded-full border-2 border-emerald-900/50 bg-emerald-900/20 absolute -z-10 shadow-2xl shadow-emerald-900/20"></div>
+                
+                <!-- Bidding Phase -->
+                <div id="bidding-table" class="hidden text-center">
+                    <p class="text-slate-400 mb-4 font-medium tracking-widest uppercase text-sm">Face Up Card</p>
+                    <div id="face-up-card" class="inline-block bg-white text-3xl p-6 rounded-xl shadow-2xl card text-black font-bold min-w-[80px]"></div>
+                </div>
+
+                <!-- Playing Phase -->
+                <div id="playing-table" class="hidden w-full max-w-2xl">
+                    <p class="text-center text-slate-400 mb-8 font-medium tracking-widest uppercase text-sm">Current Trick</p>
+                    <div class="flex justify-center items-center gap-8 relative h-[250px]">
+                        <!-- Teammate -->
+                        <div class="absolute top-0 flex flex-col items-center">
+                            <span class="text-xs text-slate-500 mb-2">Teammate</span>
+                            <div id="trick-teammate" class="w-16 h-24 bg-slate-800 rounded-lg flex items-center justify-center text-2xl font-bold card border border-slate-700"></div>
+                        </div>
+                        <!-- Left -->
+                        <div class="absolute left-10 flex flex-col items-center">
+                            <span class="text-xs text-slate-500 mb-2">Left</span>
+                            <div id="trick-left" class="w-16 h-24 bg-slate-800 rounded-lg flex items-center justify-center text-2xl font-bold card border border-slate-700"></div>
+                        </div>
+                        <!-- Right -->
+                        <div class="absolute right-10 flex flex-col items-center">
+                            <span class="text-xs text-slate-500 mb-2">Right</span>
+                            <div id="trick-right" class="w-16 h-24 bg-slate-800 rounded-lg flex items-center justify-center text-2xl font-bold card border border-slate-700"></div>
+                        </div>
+                        <!-- You -->
+                        <div class="absolute bottom-0 flex flex-col items-center">
+                            <div id="trick-you" class="w-16 h-24 bg-slate-800 rounded-lg flex items-center justify-center text-2xl font-bold card border border-blue-500/50"></div>
+                            <span class="text-xs text-blue-400 mt-2">You</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player Hand -->
+            <div id="past-tricks-container" class="hidden w-full mt-2 bg-slate-800/30 p-4 rounded-xl border border-slate-700 mb-6">
+                <p class="text-slate-400 mb-3 font-medium text-sm">Past Tricks</p>
+                <div id="past-tricks-list" class="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
+                </div>
+            </div>
+
+            <div class="mt-auto">
+                <p class="text-slate-400 mb-3 text-sm font-medium">Your Hand</p>
+                <div id="player-hand" class="flex gap-2 flex-wrap min-h-[60px]"></div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-6">
+                <p class="text-slate-400 mb-3 text-sm font-medium">Available Actions</p>
+                <div id="actions-container" class="flex gap-3 flex-wrap min-h-[50px]">
+                    <span class="text-slate-500 italic">Click 'New Game' to start</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Sidebar (Logs) -->
+        <aside class="w-80 flex flex-col bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+            <div class="bg-slate-800 p-3 border-b border-slate-700 font-semibold text-sm">Game Logs</div>
+            <div id="logs-container" class="flex-1 p-4 overflow-y-auto text-sm flex flex-col gap-2 font-mono h-[600px]"></div>
+        </aside>
+    </div>
+
+    <script>
+        let pollTimer = null;
+
+        function formatCardText(str) {
+            if (!str) return '';
+            if (str.includes('♥') || str.includes('♦')) {
+                return `<span class="text-red-500">${str}</span>`;
+            }
+            if (str.includes('♠') || str.includes('♣')) {
+                return `<span class="text-slate-800">${str}</span>`;
+            }
+            return `<span class="text-yellow-500">${str}</span>`;
+        }
+
+        function formatCardDarkText(str) {
+            if (!str) return '';
+            if (str.includes('♥') || str.includes('♦')) {
+                return `<span class="text-red-400">${str}</span>`;
+            }
+            if (str.includes('♠') || str.includes('♣')) {
+                return `<span class="text-slate-100">${str}</span>`; 
+            }
+            return `<span class="text-yellow-400">${str}</span>`;
+        }
+
+        async function startGame() {
+            clearTimeout(pollTimer);
+            document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse">Initializing game...</span>';
+            const res = await fetch('/start', { method: 'POST' });
+            if (res.ok) fetchState();
+        }
+
+        async function takeAction(index) {
+            document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse">Processing...</span>';
+            await fetch('/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action_index: index })
+            });
+            fetchState();
+        }
+
+        async function fetchState() {
+            clearTimeout(pollTimer);
+            try {
+                const res = await fetch('/state');
+                if (!res.ok) return;
+                const state = await res.json();
+                
+                document.getElementById('game-info').classList.remove('hidden');
+                
+                // Info
+                document.getElementById('score-t0').innerText = state.scores[0];
+                document.getElementById('score-t1').innerText = state.scores[1];
+                document.getElementById('phase').innerText = state.phase.toUpperCase();
+                document.getElementById('dealer').innerText = state.dealer;
+
+                if (state.phase === 'bidding') {
+                    document.getElementById('bidding-table').classList.remove('hidden');
+                    document.getElementById('playing-table').classList.add('hidden');
+                    document.getElementById('contract-info').classList.add('hidden');
+                    document.getElementById('past-tricks-container').classList.add('hidden');
+                    
+                    document.getElementById('face-up-card').innerHTML = formatCardText(state.face_up);
+                } else {
+                    document.getElementById('bidding-table').classList.add('hidden');
+                    document.getElementById('playing-table').classList.remove('hidden');
+                    document.getElementById('contract-info').classList.remove('hidden');
+                    
+                    document.getElementById('contract').innerText = state.contract || '';
+                    document.getElementById('buyer').innerText = state.buyer || '';
+                    document.getElementById('trump').innerText = state.trump || 'None';
+
+                    // Trick
+                    const positions = { "Teammate": "trick-teammate", "Your Left": "trick-left", "Your Right": "trick-right", "You": "trick-you" };
+                    Object.values(positions).forEach(id => document.getElementById(id).innerHTML = '');
+                    
+                    if (state.trick) {
+                        state.trick.forEach(t => {
+                            if (t.card && positions[t.player]) {
+                                document.getElementById(positions[t.player]).innerHTML = formatCardDarkText(t.card);
+                            }
+                        });
+                    }
+
+                    // Past Tricks
+                    if (state.trick_history && state.trick_history.length > 0) {
+                        document.getElementById('past-tricks-container').classList.remove('hidden');
+                        const historyContainer = document.getElementById('past-tricks-list');
+                        historyContainer.innerHTML = '';
+                        state.trick_history.forEach(th => {
+                            let trickHtml = `<div class="bg-slate-800 p-3 rounded-lg border border-slate-700 min-w-[150px] shrink-0">
+                                <div class="text-xs text-slate-400 mb-2 font-bold uppercase tracking-wider">Trick ${th.trick_number}</div>
+                                <div class="flex gap-1 justify-center mb-2 flex-wrap">`;
+                            
+                            th.cards.forEach(c => {
+                                if (c.card) {
+                                    trickHtml += `<div class="w-7 h-10 bg-white rounded flex items-center justify-center font-bold shadow-sm text-sm cursor-help" title="${c.player}">${formatCardText(c.card)}</div>`;
+                                }
+                            });
+                            
+                            trickHtml += `</div>
+                                <div class="text-xs text-emerald-400 text-center font-semibold truncate">Won by ${th.winner}</div>
+                            </div>`;
+                            historyContainer.innerHTML += trickHtml;
+                        });
+                        
+                        // Scroll to the end to show the latest tricks
+                        historyContainer.scrollLeft = historyContainer.scrollWidth;
+                    } else {
+                        document.getElementById('past-tricks-container').classList.add('hidden');
+                    }
+                }
+
+                // Hand
+                const handContainer = document.getElementById('player-hand');
+                handContainer.innerHTML = '';
+                state.hand.forEach(card => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-white text-xl py-3 px-4 rounded-lg shadow-md font-bold card text-center min-w-[60px] cursor-default';
+                    div.innerHTML = formatCardText(card);
+                    handContainer.appendChild(div);
+                });
+
+                // Actions
+                const actionsContainer = document.getElementById('actions-container');
+                actionsContainer.innerHTML = '';
+                if (state.valid_actions.length > 0 && !state.done) {
+                    state.valid_actions.forEach(act => {
+                        const btn = document.createElement('button');
+                        btn.className = 'bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white px-4 py-2 rounded-lg transition card font-semibold';
+                        btn.innerHTML = formatCardDarkText(act.text);
+                        btn.onclick = () => takeAction(act.index);
+                        actionsContainer.appendChild(btn);
+                    });
+                } else if (!state.done) {
+                    actionsContainer.innerHTML = '<span class="text-slate-500 italic animate-pulse">Waiting for AI turns...</span>';
+                    pollTimer = setTimeout(fetchState, 1500); // Poll for AI turns
+                } else {
+                    actionsContainer.innerHTML = '<span class="text-emerald-400 font-bold text-xl">Game Over!</span>';
+                }
+
+                // Logs
+                const logsContainer = document.getElementById('logs-container');
+                logsContainer.innerHTML = '';
+                state.logs.forEach(log => {
+                    const div = document.createElement('div');
+                    div.className = 'text-slate-300 pb-2 border-b border-slate-700/50 last:border-0';
+                    div.innerHTML = formatCardDarkText(log);
+                    logsContainer.appendChild(div);
+                });
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+
+            } catch (err) {
+                console.error("Error fetching state:", err);
+            }
+        }
+    </script>
+</body>
+</html>

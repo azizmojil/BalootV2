@@ -275,7 +275,7 @@ def allowed_overbids(buyer, dealer, bid_type, doubling_status, bidding_round, ag
     return mask
 
 
-def allowed_doubling_action(buy_type, buyer, agent, cumulative_scores, current_doubling_state, original_doubler):
+def allowed_doubling_action(buy_type, buyer, agent, cumulative_scores, current_doubling_state, last_doubler):
     mask = np.zeros(43, dtype=np.float32)
     mask[32] = 1
 
@@ -291,12 +291,15 @@ def allowed_doubling_action(buy_type, buyer, agent, cumulative_scores, current_d
             if agent_team != buyer_team:
                 mask[39] = 1
     elif buy_type != "Sun":
-        if current_doubling_state == "Double" and agent == buyer:
-            mask[40] = 1
-        elif current_doubling_state == "Three" and agent == original_doubler:
-            mask[41] = 1
-        elif current_doubling_state == "Four" and agent == buyer:
-            mask[42] = 1
+        if last_doubler is not None:
+            last_doubler_team = team(last_doubler)
+            if agent_team != last_doubler_team:
+                if current_doubling_state == "Double":
+                    mask[40] = 1
+                elif current_doubling_state == "Three":
+                    mask[41] = 1
+                elif current_doubling_state == "Four":
+                    mask[42] = 1
     return mask
 
 

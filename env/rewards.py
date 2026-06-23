@@ -20,9 +20,11 @@ REWARD_ALL_PASS_PENALTY = -0.1 # Penalty if a round fails because everyone passe
 
 SUN_CARD_POINTS = {'A': 11, '10': 10, 'K': 4, 'Q': 3, 'J': 2, '9': 0, '8': 0, '7': 0}
 HUKOOM_CARD_POINTS = {'J': 20, '9': 14, 'A': 11, '10': 10, 'K': 4, 'Q': 3, '8': 0, '7': 0}
+# Set bonuses mirror Baloot declarations: runs (Sera/Khamseen/Mia_c) and four-of-a-kind (Mia_s/Arbamia).
 BIDDING_SET_STRENGTH_BONUS = {
     "Sera": 20, "Khamseen": 50, "Mia_c": 100, "Mia_s": 100, "Arbamia": 200
 }
+# Strength is raw 6-card point potential plus set/trump-control bonuses; >50 is a strong buy.
 BIDDING_STRONG_HAND_THRESHOLD = 50
 BIDDING_MONSTER_HAND_THRESHOLD = 80
 BIDDING_WEAK_HAND_THRESHOLD = 35
@@ -52,6 +54,7 @@ def get_card_points(card, game_type, trump_suit):
 
 
 def _get_augmented_bidding_hand(env, agent_id, receives_face_up=True):
+    """Return a bidding hand, optionally augmented with the face-up card the buyer receives."""
     hand = list(env.hands[agent_id])
     face_up = env.face_up
     if receives_face_up and face_up is not None and face_up not in hand:
@@ -60,6 +63,7 @@ def _get_augmented_bidding_hand(env, agent_id, receives_face_up=True):
 
 
 def _get_detected_sets(hand):
+    """Import lazily to avoid the existing utils/rewards circular import."""
     from env.utils import detect_sets
     return detect_sets(hand)
 
@@ -97,6 +101,7 @@ def _calculate_bidding_strengths(env, agent_id, receives_face_up=True):
 
 
 def _reward_for_passing(best_strength):
+    """Reward passing weak hands and penalize passing strong or monster buying potential."""
     if best_strength >= BIDDING_MONSTER_HAND_THRESHOLD:
         return -0.12
     if best_strength >= BIDDING_STRONG_HAND_THRESHOLD:
@@ -118,6 +123,7 @@ def _partner_id(agent_id):
 
 
 def _reward_for_sun_bid(strengths):
+    """Grade a Sun bid using strengths['Sun'] versus strengths['best_hukoom']."""
     sun_score = strengths["Sun"]
     best_hukoom = strengths["best_hukoom"]
     if sun_score < BIDDING_WEAK_HAND_THRESHOLD:
@@ -132,6 +138,7 @@ def _reward_for_sun_bid(strengths):
 
 
 def _reward_for_hukoom_bid(strengths, trump_suit):
+    """Grade a Hukoom suit bid against the best Hukoom suit and Sun alternative."""
     suit_score = strengths["Hukoom"][trump_suit]
     best_hukoom = strengths["best_hukoom"]
     sun_score = strengths["Sun"]

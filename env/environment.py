@@ -7,6 +7,7 @@ from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, c
 
 class BalootMultiAgentEnv(gym.Env):
     metadata = {"render_modes": ["human"]}
+    INFERENCE_EPSILON = 1e-3
 
     def __init__(self):
         super().__init__()
@@ -131,6 +132,7 @@ class BalootMultiAgentEnv(gym.Env):
                 if total_hidden_slots <= 0:
                     raise RuntimeError(
                         f"Cannot assign ownership belief for card_idx={card_idx}, observer={observer}; "
+                        f"total_hidden_slots={total_hidden_slots}, hidden_slots={hidden_slots.tolist()}, "
                         f"hand_sizes={hand_sizes.tolist()}, known_remaining={known_remaining.tolist()}"
                     )
 
@@ -609,7 +611,7 @@ class BalootMultiAgentEnv(gym.Env):
             self.declared_sets_info = revealed
 
     def _infer_cards(self, agent):
-        eps = 1e-3
+        eps = self.INFERENCE_EPSILON
         set_type_by_index = ("Sera", "Khamseen", "Mia", "Arbamia")
 
         hidden = [c for c in range(32)

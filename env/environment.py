@@ -51,6 +51,10 @@ class BalootMultiAgentEnv(gym.Env):
         for p in range(4):
             hand = [self.deck.pop(0) for _ in range(5)]
             self.hands.append(hand)
+        self.hand_high_card_counts = [
+            sum(1 for (suit, rank) in hand if rank in ('A', 'K', 'Q', 'J'))
+            for hand in self.hands
+        ]
         for p, hand in enumerate(self.hands):
             for card in hand:
                 idx = canonical_deck.index(card)
@@ -354,7 +358,7 @@ class BalootMultiAgentEnv(gym.Env):
         else:
             previous_trick_count = self.trick_count
             self._playing_step(acting_agent, action)
-            trick_completed = self.trick_count > previous_trick_count
+            trick_completed = self.trick_count != previous_trick_count
             if self.trick_count >= 8:
                 rewards = self._compute_score()
                 self._update_cumulative_scores()

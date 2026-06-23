@@ -102,8 +102,12 @@ def calculate_bidding_reward(env, agent_id, action):
     - Penalizes passing.
     - Rewards bidding when the agent has strong cards.
     """
-    agent_hand = env.hands[agent_id]
-    high_card_count = sum(1 for (suit, rank) in agent_hand if rank in ('A', 'K', 'Q', 'J'))
+    high_card_counts = getattr(env, "hand_high_card_counts", None)
+    if high_card_counts is not None:
+        high_card_count = high_card_counts[agent_id]
+    else:
+        agent_hand = env.hands[agent_id]
+        high_card_count = sum(1 for (suit, rank) in agent_hand if rank in ('A', 'K', 'Q', 'J'))
 
     # Action 32 is "Pass"
     if action == 32:

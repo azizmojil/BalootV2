@@ -280,8 +280,8 @@ class BalootMultiAgentEnv(gym.Env):
         canonical = create_deck()
         if self.trick_count == 0:
             sets = detect_sets(self.hands[agent])
+            sets_list = list(set(s.split('_')[0] for s in SET_PRIORITY.keys()))[::-1]
             for s in sets:
-                sets_list = list(set(s.split('_')[0] for s in SET_PRIORITY.keys()))[::-1]
                 i = sets_list.index(s["type"].split('_')[0])
                 self.declared_sets[agent, i] += 1.0
         if self.trick_count == 1:

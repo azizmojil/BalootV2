@@ -1,4 +1,4 @@
-import tensorflow as tf
+from math import sqrt
 from tensorflow.keras.layers import Input, Dense, Concatenate, Dropout, LeakyReLU, LayerNormalization
 from tensorflow.keras.initializers import Orthogonal, Zeros
 from tensorflow.keras.models import Model
@@ -14,7 +14,7 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim, dropout_rate=0
     local_obs_input = Input(shape=(local_obs_dim,), name='local_obs_input')
     global_state_input = Input(shape=(global_state_dim,), name='global_state_input')
     bias_init = Zeros()
-    hidden_init = lambda: Orthogonal(gain=1.41421356237)
+    hidden_init = lambda: Orthogonal(gain=sqrt(2))
 
     # --- ACTOR (Policy) Stream - uses ONLY local obs ---
     actor_net = Dense(256, kernel_initializer=hidden_init(), bias_initializer=bias_init)(local_obs_input)

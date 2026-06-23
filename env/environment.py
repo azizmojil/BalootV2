@@ -58,7 +58,7 @@ class BalootMultiAgentEnv(gym.Env):
         for p, hand in enumerate(self.hands):
             for card in hand:
                 idx = canonical_deck.index(card)
-                self.card_ownership[idx, p, p] = 1.0
+                self._set_known_card_owner(idx, p, observers=[p])
         self.face_up = self.deck.pop(0)
         self.trick_order = None
         self.trick_suit = None
@@ -78,7 +78,63 @@ class BalootMultiAgentEnv(gym.Env):
         self.team_tricks = [0, 0]
         self.last_trick_reward = {f'player_{i}': 0 for i in range(4)}
         self.bidding_order = np.array(compute_bidding_order(self.dealer), dtype=np.int32)
+        self._refresh_card_ownership_beliefs()
         return self.get_observation()
+
+    def _set_known_card_owner(self, card_idx, owner, observers=None):
+        if observers is None:
+            observers = range(4)
+        for observer in observers:
+            self.card_ownership[card_idx, :, observer] = 0.0
+            self.card_ownership[card_idx, owner, observer] = 1.0
+
+    def _clear_card_owner_belief(self, card_idx, observers=None):
+        if observers is None:
+            observers = range(4)
+        for observer in observers:
+            self.card_ownership[card_idx, :, observer] = 0.0
+
+    def _is_known_to_observer(self, card_idx, observer):
+        return any(np.isclose(self.card_ownership[card_idx, :, observer], 1.0))
+
+    def _refresh_card_ownership_beliefs(self, observers=None):
+        if observers is None:
+            observers = range(4)
+
+        canonical_deck = create_deck()
+        face_up_idx = canonical_deck.index(self.face_up) if getattr(self, "face_up", None) is not None else None
+
+        for observer in observers:
+            known_remaining = np.zeros(4, dtype=np.float32)
+            for card_idx in range(32):
+                if self.remaining_cards[card_idx] == 0:
+                    continue
+                owners = np.where(np.isclose(self.card_ownership[card_idx, :, observer], 1.0))[0]
+                if len(owners) == 1:
+                    known_remaining[owners[0]] += 1.0
+
+            hidden_slots = np.array([
+                max(0.0, float(len(self.hands[player])) - known_remaining[player])
+                for player in range(4)
+            ], dtype=np.float32)
+            total_hidden_slots = float(hidden_slots.sum())
+
+            for card_idx in range(32):
+                if self.remaining_cards[card_idx] == 0:
+                    continue
+                if face_up_idx == card_idx and self.buyer is None:
+                    self._clear_card_owner_belief(card_idx, observers=[observer])
+                    continue
+                if self._is_known_to_observer(card_idx, observer):
+                    continue
+                if total_hidden_slots <= 0:
+                    self._clear_card_owner_belief(card_idx, observers=[observer])
+                    continue
+
+                prior = self.card_ownership[card_idx, :, observer] * hidden_slots
+                if float(prior.sum()) <= 0:
+                    prior = hidden_slots.copy()
+                self.card_ownership[card_idx, :, observer] = prior / prior.sum()
 
     def get_observation(self):
         ag = self.current_agent
@@ -254,12 +310,12 @@ class BalootMultiAgentEnv(gym.Env):
             canonical_deck = create_deck()
             self.hands[self.buyer].append(self.face_up)
             idx = canonical_deck.index(self.face_up)
-            self.card_ownership[idx, self.buyer, :] = 1.0
+            self._set_known_card_owner(idx, self.buyer)
             for _ in range(2):
                 card = self.deck.pop(0)
                 self.hands[self.buyer].append(card)
                 idx = canonical_deck.index(card)
-                self.card_ownership[idx, self.buyer, self.buyer] = 1.0
+                self._set_known_card_owner(idx, self.buyer, observers=[self.buyer])
             for p in range(4):
                 if p == self.buyer:
                     continue
@@ -267,9 +323,10 @@ class BalootMultiAgentEnv(gym.Env):
                     card = self.deck.pop(0)
                     self.hands[p].append(card)
                     idx = canonical_deck.index(card)
-                    self.card_ownership[idx, p, p] = 1.0
+                    self._set_known_card_owner(idx, p, observers=[p])
             for p in range(4):
                 self.hands[p] = sort_hand_canonical(self.hands[p])
+            self._refresh_card_ownership_beliefs()
 
             self.declared_sets_info = [detect_sets(self.hands[p]) for p in range(4)]
             check_set_balot(self.declared_sets_info, self.trump_suit, self.balot)
@@ -293,13 +350,14 @@ class BalootMultiAgentEnv(gym.Env):
                 self.revealed_sets[agent, i] += 1.0
                 for card in s["cards"]:
                     idx = canonical.index(card)
-                    self.card_ownership[idx, agent, :] = 1.0
+                    self._set_known_card_owner(idx, agent)
 
         chosen_card = canonical[action]
         self.hands[agent].remove(chosen_card)
         idx = canonical.index(chosen_card)
         self.remaining_cards[idx] = 0.0
-        self.card_ownership[idx, agent, :] = 1.0
+        self._set_known_card_owner(idx, agent)
+        self._refresh_card_ownership_beliefs()
         self._infer_cards(agent)
 
         if self.game_type == "Hukoom" and self.trump_suit:
@@ -547,9 +605,8 @@ class BalootMultiAgentEnv(gym.Env):
 
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
-                  and not np.isclose(self.card_ownership[c, :, agent],
-                                     [0, 0, 0, 0]).all()
-                  and not any(self.card_ownership[c, :, agent] == 1.0)]
+                  and self.card_ownership[c, :, agent].sum() > eps
+                  and not any(np.isclose(self.card_ownership[c, :, agent], 1.0))]
 
         for player in range(4):
             to_find = int(self.declared_sets[player].sum()
@@ -592,5 +649,6 @@ class BalootMultiAgentEnv(gym.Env):
                 prior = self.card_ownership[c, :, agent]
                 likelihood = counts[c] + eps
                 post = prior * likelihood
-                post /= post.sum()
-                self.card_ownership[c, :, agent] = post
+                post_sum = post.sum()
+                if post_sum > 0:
+                    self.card_ownership[c, :, agent] = post / post_sum

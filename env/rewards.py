@@ -46,10 +46,10 @@ def get_card_points(card, game_type, trump_suit):
         return 0
 
 
-def _get_augmented_bidding_hand(env, agent_id):
+def _get_augmented_bidding_hand(env, agent_id, receives_face_up=True):
     hand = list(env.hands[agent_id])
     face_up = env.face_up
-    if face_up is not None and face_up not in hand:
+    if receives_face_up and face_up is not None and face_up not in hand:
         hand.append(face_up)
     return hand
 
@@ -78,8 +78,8 @@ def _calculate_hukoom_bidding_strength(hand, trump_suit):
     return score
 
 
-def _calculate_bidding_strengths(env, agent_id):
-    hand = _get_augmented_bidding_hand(env, agent_id)
+def _calculate_bidding_strengths(env, agent_id, receives_face_up=True):
+    hand = _get_augmented_bidding_hand(env, agent_id, receives_face_up)
     hukoom_scores = {
         suit: _calculate_hukoom_bidding_strength(hand, suit)
         for suit in BIDDING_SUIT_ACTIONS.values()
@@ -101,6 +101,13 @@ def _reward_for_passing(best_strength):
     return 0.0
 
 
+def _has_available_buy_action(env):
+    if not hasattr(env, "_bidding_mask"):
+        return True
+    bidding_mask = env._bidding_mask()
+    return any(bidding_mask[action] == 1 for action in (33, 34, 35, 36, 37, 38))
+
+
 def _reward_for_sun_bid(strengths):
     sun_score = strengths["Sun"]
     best_hukoom = strengths["best_hukoom"]
@@ -108,7 +115,7 @@ def _reward_for_sun_bid(strengths):
         return -0.08
     if sun_score >= BIDDING_STRONG_HAND_THRESHOLD:
         if sun_score + BIDDING_CLOSE_CHOICE_MARGIN < best_hukoom:
-            return 0.04
+            return -0.04
         return 0.12
     if best_hukoom >= BIDDING_STRONG_HAND_THRESHOLD:
         return -0.04
@@ -125,7 +132,7 @@ def _reward_for_hukoom_bid(strengths, trump_suit):
         return -0.05
     if suit_score >= BIDDING_STRONG_HAND_THRESHOLD:
         if sun_score > suit_score + BIDDING_CLOSE_CHOICE_MARGIN:
-            return 0.04
+            return -0.04
         return 0.12
     return 0.02
 
@@ -191,6 +198,12 @@ def calculate_bidding_reward(env, agent_id, action):
     Calculates an immediate reward during the bidding phase.
     Grades pass, Sun, and Hukoom actions against the hand's Sun/Hukoom potential.
     """
+    if action not in (32, 33, 38) and action not in BIDDING_SUIT_ACTIONS:
+        return 0.0
+
+    if action == 32 and not _has_available_buy_action(env):
+        return 0.0
+
     # Action 38 buys Sun for the acting agent's partner.
     scoring_agent = (agent_id + 2) % 4 if action == 38 else agent_id
     strengths = _calculate_bidding_strengths(env, scoring_agent)

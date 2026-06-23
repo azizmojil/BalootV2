@@ -606,9 +606,9 @@ class BalootMultiAgentEnv(gym.Env):
 
             self.declared_sets_info = revealed
 
-    def _infer_cards(self, agent, epsilon=1e-3):
-        TYPE_IDX = {0: "Sera", 1: "Khamseen", 2: "Mia", 3: "Arbamia"}
-        eps = epsilon
+    def _infer_cards(self, agent):
+        eps = 1e-3
+        set_types = ("Sera", "Khamseen", "Mia", "Arbamia")
 
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
@@ -630,7 +630,7 @@ class BalootMultiAgentEnv(gym.Env):
 
             declared_types = []
             for idx, count in enumerate(self.declared_sets[player]):
-                declared_types += [TYPE_IDX[idx]] * int(count)
+                declared_types += [set_types[idx]] * int(count)
 
             candidates = []
             for s in all_sets:

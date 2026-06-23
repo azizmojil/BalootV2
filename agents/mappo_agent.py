@@ -35,7 +35,6 @@ class MAPPOAgent:
         # Apply mask for action selection
         very_negative = -1e10 * tf.ones_like(logits)
         masked_logits = tf.where(mask_t > 0, logits, very_negative)
-        masked_logits = tf.ensure_shape(masked_logits, (1, self.act_dim))
 
         # Sample action from the masked distribution
         action_tensor = tf.random.categorical(tf.nn.log_softmax(masked_logits, axis=1), num_samples=1)
@@ -111,7 +110,7 @@ class MAPPOAgent:
                 clip_fraction = tf.reduce_mean(
                     tf.cast(tf.abs(ratio - 1.0) > self.clip_range, tf.float32)
                 )
-                approx_kl = tf.reduce_mean((ratio - 1.0) - log_ratio)
+                approx_kl = 0.5 * tf.reduce_mean(tf.square(log_ratio))
                 
                 surr1 = ratio * batch_advantages
                 surr2 = tf.clip_by_value(ratio, 1 - self.clip_range, 1 + self.clip_range) * batch_advantages

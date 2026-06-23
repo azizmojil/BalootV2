@@ -280,6 +280,7 @@ class BalootMultiAgentEnv(gym.Env):
         canonical = create_deck()
         if self.trick_count == 0:
             sets = detect_sets(self.hands[agent])
+            # Both Mia_c and Mia_s declarations share the compact "Mia" observation bucket.
             set_type_to_index = {"Sera": 0, "Khamseen": 1, "Mia": 2, "Arbamia": 3}
             for s in sets:
                 i = set_type_to_index.get(s["type"].split('_')[0])

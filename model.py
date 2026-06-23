@@ -1,3 +1,4 @@
+import tensorflow as tf
 from math import sqrt
 from tensorflow.keras.layers import Input, Dense, Concatenate, Dropout, LeakyReLU, LayerNormalization
 from tensorflow.keras.initializers import Orthogonal, Zeros

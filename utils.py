@@ -1,5 +1,5 @@
 import numpy as np
-from env.constants import TARGET_SCORE
+from env.constants import BID_ACTIONS, TARGET_SCORE
 
 def flatten_obs(obs_dict):
     """Flattens the observation dictionary into a single numpy array."""
@@ -32,7 +32,10 @@ def get_global_state(env):
 
     def encode_action(action):
         """Encodes a bidding action into a normalized scalar; 0 represents no bid."""
-        return 0.0 if action is None else (action - 31) / 11.0
+        if action not in BID_ACTIONS:
+            return 0.0
+        min_action, max_action = min(BID_ACTIONS), max(BID_ACTIONS)
+        return (action - min_action + 1) / (max_action - min_action + 1)
 
     def encode_suit(suit):
         """Encodes suits distinctly from no-trump and invalid values."""
@@ -74,7 +77,7 @@ def get_global_state(env):
     ]
 
     # Scores
-    scores = np.clip(np.array(env.cumulative_scores, dtype=np.float32) / TARGET_SCORE, 0.0, 1.0)
+    scores = np.array(env.cumulative_scores, dtype=np.float32) / TARGET_SCORE
 
     # Concatenate all features into a single vector
     return np.concatenate([

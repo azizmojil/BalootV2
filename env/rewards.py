@@ -26,6 +26,16 @@ REWARD_ALL_PASS_PENALTY = -0.1 # Penalty if a round fails because everyone passe
 
 SUN_CARD_POINTS = {'A': 11, '10': 10, 'K': 4, 'Q': 3, 'J': 2, '9': 0, '8': 0, '7': 0}
 HUKOOM_CARD_POINTS = {'J': 20, '9': 14, 'A': 11, '10': 10, 'K': 4, 'Q': 3, '8': 0, '7': 0}
+BIDDING_SET_STRENGTH_BONUS = {
+    "Sera": 20, "Khamseen": 50, "Mia_c": 100, "Mia_s": 100, "Arbamia": 200
+}
+BIDDING_STRONG_HAND_THRESHOLD = 50
+BIDDING_MONSTER_HAND_THRESHOLD = 80
+BIDDING_WEAK_HAND_THRESHOLD = 35
+BIDDING_CLOSE_CHOICE_MARGIN = 8
+BIDDING_TRUMP_JACK_BONUS = 20
+BIDDING_TRUMP_NINE_BONUS = 10
+BIDDING_SUIT_ACTIONS = {34: '♠', 35: '♥', 36: '♦', 37: '♣'}
 
 
 def get_card_points(card, game_type, trump_suit):
@@ -40,6 +50,90 @@ def get_card_points(card, game_type, trump_suit):
     except (TypeError, ValueError):
         # Handles cases where card is None or not a valid tuple
         return 0
+
+
+def _get_augmented_bidding_hand(env, agent_id):
+    hand = list(getattr(env, "hands", [[]])[agent_id])
+    face_up = getattr(env, "face_up", None)
+    if face_up is not None and face_up not in hand:
+        hand.append(face_up)
+    return hand
+
+
+def _get_detected_sets(hand):
+    from env.utils import detect_sets
+    return detect_sets(hand)
+
+
+def _set_strength_bonus(hand):
+    return sum(BIDDING_SET_STRENGTH_BONUS.get(s["type"], 0) for s in _get_detected_sets(hand))
+
+
+def _calculate_sun_bidding_strength(hand):
+    card_points = sum(SUN_CARD_POINTS.get(rank, 0) for suit, rank in hand)
+    return card_points + _set_strength_bonus(hand)
+
+
+def _calculate_hukoom_bidding_strength(hand, trump_suit):
+    score = sum(get_card_points(card, "Hukoom", trump_suit) for card in hand)
+    score += _set_strength_bonus(hand)
+    if (trump_suit, "J") in hand:
+        score += BIDDING_TRUMP_JACK_BONUS
+    if (trump_suit, "9") in hand:
+        score += BIDDING_TRUMP_NINE_BONUS
+    return score
+
+
+def _calculate_bidding_strengths(env, agent_id):
+    hand = _get_augmented_bidding_hand(env, agent_id)
+    hukoom_scores = {
+        suit: _calculate_hukoom_bidding_strength(hand, suit)
+        for suit in BIDDING_SUIT_ACTIONS.values()
+    }
+    return {
+        "Sun": _calculate_sun_bidding_strength(hand),
+        "Hukoom": hukoom_scores,
+        "best_hukoom": max(hukoom_scores.values()),
+    }
+
+
+def _reward_for_passing(best_strength):
+    if best_strength >= BIDDING_MONSTER_HAND_THRESHOLD:
+        return -0.12
+    if best_strength >= BIDDING_STRONG_HAND_THRESHOLD:
+        return -0.06
+    if best_strength < BIDDING_WEAK_HAND_THRESHOLD:
+        return 0.03
+    return 0.0
+
+
+def _reward_for_sun_bid(strengths):
+    sun_score = strengths["Sun"]
+    best_hukoom = strengths["best_hukoom"]
+    if sun_score < BIDDING_WEAK_HAND_THRESHOLD:
+        return -0.08
+    if sun_score >= BIDDING_STRONG_HAND_THRESHOLD:
+        if sun_score + BIDDING_CLOSE_CHOICE_MARGIN < best_hukoom:
+            return 0.04
+        return 0.12
+    if best_hukoom >= BIDDING_STRONG_HAND_THRESHOLD:
+        return -0.04
+    return 0.02
+
+
+def _reward_for_hukoom_bid(strengths, trump_suit):
+    suit_score = strengths["Hukoom"][trump_suit]
+    best_hukoom = strengths["best_hukoom"]
+    sun_score = strengths["Sun"]
+    if suit_score < BIDDING_WEAK_HAND_THRESHOLD:
+        return -0.08
+    if suit_score + BIDDING_CLOSE_CHOICE_MARGIN < best_hukoom:
+        return -0.05
+    if suit_score >= BIDDING_STRONG_HAND_THRESHOLD:
+        if sun_score > suit_score + BIDDING_CLOSE_CHOICE_MARGIN:
+            return 0.04
+        return 0.12
+    return 0.02
 
 
 def calculate_trick_reward(trick_cards, trick_winner, game_type, trump_suit):
@@ -101,34 +195,25 @@ def calculate_end_of_round_reward(env):
 def calculate_bidding_reward(env, agent_id, action):
     """
     Calculates an immediate reward during the bidding phase.
-    - Penalizes passing.
-    - Rewards bidding when the agent has strong cards.
+    Grades pass, Sun, and Hukoom actions against the hand's Sun/Hukoom potential.
     """
-    high_card_counts = getattr(env, "hand_high_card_counts", None)
-    if high_card_counts is not None:
-        high_card_count = high_card_counts[agent_id]
-    else:
-        agent_hand = env.hands[agent_id]
-        high_card_count = sum(1 for (suit, rank) in agent_hand if rank in HIGH_CARD_RANKS)
+    try:
+        scoring_agent = (agent_id + 2) % 4 if action == 38 else agent_id
+        strengths = _calculate_bidding_strengths(env, scoring_agent)
 
-    # Action 32 is "Pass"
-    if action == 32:
-        should_penalize_pass = high_card_count >= PASS_PENALTY_HIGH_CARD_THRESHOLD
-        return REWARD_PASS_PENALTY if should_penalize_pass else 0.0
+        if action == 32:
+            best_strength = max(strengths["Sun"], strengths["best_hukoom"])
+            return _reward_for_passing(best_strength)
 
-    # If the agent made a bid (not a pass), give a small positive signal.
-    # We can't use declared_sets_info here because it's not populated until
-    # bidding ends. Instead, use a simple heuristic based on high cards.
+        if action in (33, 38):
+            return _reward_for_sun_bid(strengths)
 
-    # Scale reward by hand quality
-    if high_card_count >= 4:
-        return 0.12
-    elif high_card_count >= 3:
-        return 0.10
-    elif high_card_count >= 2:
-        return 0.03
-    else:
-        return -0.03
+        if action in BIDDING_SUIT_ACTIONS:
+            return _reward_for_hukoom_bid(strengths, BIDDING_SUIT_ACTIONS[action])
+
+        return 0.0
+    except Exception:
+        return 0.0
 
 
 def calculate_end_of_game_reward(env):

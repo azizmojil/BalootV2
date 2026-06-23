@@ -65,6 +65,30 @@ def print_game_state(env, human_player_id):
         dbl_str = f" | \033[91m{env.doubling_state.upper()}\033[0m" if env.doubling_state else ""
         print(f" 📜 Contract: \033[93m{env.game_type.upper()}\033[0m by {get_relative_name(env.buyer, human_player_id)}{trump_str}{dbl_str}")
         print(f" 👑 Trick Leader: {get_relative_name(env.trick_leader, human_player_id)}\n")
+
+        # Display active sets (projects)
+        if hasattr(env, 'declared_sets_info') and any(env.declared_sets_info):
+            sets_str_list = []
+            type_map = {"Sera": "Sira", "Khamseen": "50", "Mia_c": "100", "Mia_s": "100", "Arbamia": "400"}
+            for p_idx, p_sets in enumerate(env.declared_sets_info):
+                if p_sets:
+                    p_name = get_relative_name(p_idx, human_player_id)
+                    set_types = [type_map.get(s["type"], s["type"]) for s in p_sets]
+                    sets_str_list.append(f"\033[93m{p_name}\033[0m: {', '.join(set_types)}")
+            if sets_str_list:
+                print(" " * 22 + "--- ACTIVE SETS ---")
+                print("    " + " | ".join(sets_str_list) + "\n")
+
+        # Display balot
+        if hasattr(env, 'balot') and any(env.balot):
+            balot_str_list = []
+            for p_idx, has_balot in enumerate(env.balot):
+                if has_balot:
+                    p_name = get_relative_name(p_idx, human_player_id)
+                    balot_str_list.append(f"\033[93m{p_name}\033[0m")
+            if balot_str_list:
+                print(" " * 23 + "--- BALOOT ---")
+                print("    " + " & ".join(balot_str_list) + " declared Baloot!\n")
         
         # Display the trick history if available
         if getattr(env, 'trick_history', []):

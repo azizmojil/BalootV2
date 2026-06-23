@@ -198,6 +198,7 @@ def calculate_bidding_reward(env, agent_id, action):
     Grades pass, Sun, and Hukoom actions against the hand's Sun/Hukoom potential.
     """
     try:
+        # Action 38 buys Sun for the acting agent's teammate, who receives face_up.
         scoring_agent = (agent_id + 2) % 4 if action == 38 else agent_id
         strengths = _calculate_bidding_strengths(env, scoring_agent)
 
@@ -212,7 +213,7 @@ def calculate_bidding_reward(env, agent_id, action):
             return _reward_for_hukoom_bid(strengths, BIDDING_SUIT_ACTIONS[action])
 
         return 0.0
-    except Exception:
+    except (IndexError, KeyError, TypeError, ValueError):
         return 0.0
 
 

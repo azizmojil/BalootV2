@@ -15,12 +15,6 @@ REWARD_WIN_TRICK_BASE = 0.05
 REWARD_TRICK_POINT_SCALAR = 0.002  # Scales reward with points won
 
 # 4. Action-shaping rewards
-REWARD_PASS_PENALTY = -0.02 # Small penalty to discourage always passing
-HIGH_CARD_RANKS = ('A', 'K', 'Q', 'J')
-PASS_PENALTY_HIGH_CARD_THRESHOLD = 3
-REWARD_BID_SET_BONUS = { # Reward for bidding with a good set in hand
-    "Sera": 0.1, "Khamseen": 0.2, "Mia_c": 0.4, "Mia_s": 0.4, "Arbamia": 0.5
-}
 REWARD_ALL_PASS_PENALTY = -0.1 # Penalty if a round fails because everyone passed
 
 

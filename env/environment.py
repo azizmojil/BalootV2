@@ -95,7 +95,7 @@ class BalootMultiAgentEnv(gym.Env):
             self.card_ownership[card_idx, :, observer] = 0.0
 
     def _is_known_to_observer(self, card_idx, observer):
-        return any(np.isclose(self.card_ownership[card_idx, :, observer], 1.0))
+        return np.any(np.isclose(self.card_ownership[card_idx, :, observer], 1.0))
 
     def _refresh_card_ownership_beliefs(self, observers=None):
         if observers is None:
@@ -602,11 +602,12 @@ class BalootMultiAgentEnv(gym.Env):
 
     def _infer_cards(self, agent, eps=1e-3):
         TYPE_IDX = {0: "Sera", 1: "Khamseen", 2: "Mia", 3: "Arbamia"}
+        min_probability = float(eps)
 
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
-                  and self.card_ownership[c, :, agent].sum() > eps
-                  and not any(np.isclose(self.card_ownership[c, :, agent], 1.0))]
+                  and self.card_ownership[c, :, agent].sum() > min_probability
+                  and not np.any(np.isclose(self.card_ownership[c, :, agent], 1.0))]
 
         for player in range(4):
             to_find = int(self.declared_sets[player].sum()
@@ -643,7 +644,7 @@ class BalootMultiAgentEnv(gym.Env):
                     counts[c, player] += 1
 
             for c in hidden:
-                if any(np.isclose(self.card_ownership[c, :, agent], 1.0)):
+                if np.any(np.isclose(self.card_ownership[c, :, agent], 1.0)):
                     continue
 
                 prior = self.card_ownership[c, :, agent]

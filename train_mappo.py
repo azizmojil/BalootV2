@@ -1,6 +1,7 @@
 import sys
 import os
 import datetime
+import argparse
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
@@ -107,6 +108,12 @@ def get_learning_rate(ep):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train MAPPO Agent for Baloot")
+    parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .h5 file to resume from")
+    parser.add_argument("--start_ep", type=int, default=0, help="Episode to start from (for correct hyperparameter annealing)")
+    parser.add_argument("--start_update", type=int, default=0, help="Update count to start from (for logging)")
+    args = parser.parse_args()
+
     # ─── Setup ────────────────────────────────────────────────────────────────────
     env = BalootMultiAgentEnv()
     sample_obs = env.reset()
@@ -120,6 +127,10 @@ if __name__ == "__main__":
                        batch_size=config["batch_size"], gae_lambda=config["gae_lambda"],
                        entropy_coef=config["start_entropy"])
 
+    if args.resume:
+        agent.model.load_weights(args.resume)
+        print(f"Resumed training from weights: {args.resume}")
+
     run_name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-MAPPO"
     log_dir = os.path.join("logs", "monitor", run_name)
     model_dir = os.path.join("models", run_name)
@@ -129,9 +140,9 @@ if __name__ == "__main__":
 
     # ─── Training loop ────────────────────────────────────────────────────────────
     buffers = make_empty_buffers()
-    update_count = 0
+    update_count = args.start_update
 
-    episode_bar = tqdm(range(config["num_episodes"]), desc="Training MAPPO", unit="ep")
+    episode_bar = tqdm(range(args.start_ep, config["num_episodes"]), desc="Training MAPPO", unit="ep")
     for ep in episode_bar:
         # Anneal hyperparameters
         agent.entropy_coef = get_entropy_coef(ep)

@@ -4,22 +4,22 @@ import numpy as np
 # These values are hyperparameters and can be tuned.
 
 # 1. Game-Level Rewards (The most important signal)
-REWARD_WIN_GAME = 200.0
-REWARD_LOSE_GAME = -200.0
+REWARD_WIN_GAME = 10.0
+REWARD_LOSE_GAME = -10.0
 
 # 2. Round-Level Rewards (For making/breaking the contract)
-REWARD_CONTRACT_SUCCESS = 3.0
+REWARD_CONTRACT_SUCCESS = 2.0
 
 # 3. Trick-Level Rewards (Frequent, smaller signals)
-REWARD_WIN_TRICK_BASE = 0.2
-REWARD_TRICK_POINT_SCALAR = 0.01  # Scales reward with points won
+REWARD_WIN_TRICK_BASE = 0.05
+REWARD_TRICK_POINT_SCALAR = 0.002  # Scales reward with points won
 
 # 4. Action-shaping rewards
-REWARD_PASS_PENALTY = -0.1 # Small penalty to discourage always passing
+REWARD_PASS_PENALTY = -0.02 # Small penalty to discourage always passing
 REWARD_BID_SET_BONUS = { # Reward for bidding with a good set in hand
     "Sera": 0.1, "Khamseen": 0.2, "Mia_c": 0.4, "Mia_s": 0.4, "Arbamia": 0.5
 }
-REWARD_ALL_PASS_PENALTY = -1.0 # Penalty if a round fails because everyone passed
+REWARD_ALL_PASS_PENALTY = -0.1 # Penalty if a round fails because everyone passed
 
 
 SUN_CARD_POINTS = {'A': 11, '10': 10, 'K': 4, 'Q': 3, 'J': 2, '9': 0, '8': 0, '7': 0}
@@ -102,23 +102,26 @@ def calculate_bidding_reward(env, agent_id, action):
     - Penalizes passing.
     - Rewards bidding when the agent has strong cards.
     """
+    agent_hand = env.hands[agent_id]
+    high_card_count = sum(1 for (suit, rank) in agent_hand if rank in ('A', 'K', 'Q', 'J'))
+
     # Action 32 is "Pass"
     if action == 32:
-        return REWARD_PASS_PENALTY
+        return REWARD_PASS_PENALTY if high_card_count >= 3 else 0.0
 
     # If the agent made a bid (not a pass), give a small positive signal.
     # We can't use declared_sets_info here because it's not populated until
     # bidding ends. Instead, use a simple heuristic based on high cards.
-    agent_hand = env.hands[agent_id]
-    high_card_count = sum(1 for (suit, rank) in agent_hand if rank in ('A', 'K', 'Q', 'J'))
-    
+
     # Scale reward by hand quality
-    if high_card_count >= 3:
-        return 0.3
+    if high_card_count >= 4:
+        return 0.12
+    elif high_card_count >= 3:
+        return 0.08
     elif high_card_count >= 2:
-        return 0.15
+        return 0.03
     else:
-        return 0.05
+        return -0.03
 
 
 def calculate_end_of_game_reward(env):
@@ -128,10 +131,12 @@ def calculate_end_of_game_reward(env):
             return rewards
 
         # Determine winning team based on cumulative scores
-        if env.cumulative_scores[0] >= env.cumulative_scores[1]:
+        if env.cumulative_scores[0] > env.cumulative_scores[1]:
             winning_team_id = 0
-        else:
+        elif env.cumulative_scores[1] > env.cumulative_scores[0]:
             winning_team_id = 1
+        else:
+            return rewards
 
         for player_id in range(4):
             if player_id % 2 == winning_team_id:

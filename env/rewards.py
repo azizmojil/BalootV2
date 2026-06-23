@@ -197,7 +197,7 @@ def calculate_bidding_reward(env, agent_id, action):
     Calculates an immediate reward during the bidding phase.
     Grades pass, Sun, and Hukoom actions against the hand's Sun/Hukoom potential.
     """
-    # Action 38 buys Sun for the acting agent's teammate; teammates are 2 seats apart.
+    # Action 38 buys Sun for the acting agent's partner.
     scoring_agent = (agent_id + 2) % 4 if action == 38 else agent_id
     strengths = _calculate_bidding_strengths(env, scoring_agent)
 

@@ -2,7 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import random
 from env.utils import *
-from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, calculate_end_of_game_reward, calculate_bidding_reward, REWARD_ALL_PASS_PENALTY, HIGH_CARD_RANKS
+from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, calculate_end_of_game_reward, calculate_bidding_reward, REWARD_ALL_PASS_PENALTY
 
 
 class BalootMultiAgentEnv(gym.Env):
@@ -51,10 +51,6 @@ class BalootMultiAgentEnv(gym.Env):
         for p in range(4):
             hand = [self.deck.pop(0) for _ in range(5)]
             self.hands.append(hand)
-        self.hand_high_card_counts = [
-            sum(1 for (suit, rank) in hand if rank in HIGH_CARD_RANKS)
-            for hand in self.hands
-        ]
         for p, hand in enumerate(self.hands):
             for card in hand:
                 idx = canonical_deck.index(card)

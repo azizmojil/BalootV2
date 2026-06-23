@@ -129,8 +129,8 @@ class BalootMultiAgentEnv(gym.Env):
                 if self._is_known_to_observer(card_idx, observer):
                     continue
                 if total_hidden_slots <= 0:
-                    self._clear_card_owner_belief(card_idx, observers=[observer])
-                    continue
+                    raise RuntimeError("Cannot assign ownership belief for an unknown remaining card "
+                                       "when no hidden hand slots are available.")
 
                 prior = self.card_ownership[card_idx, :, observer] * hidden_slots
                 prior_sum = prior.sum()
@@ -608,7 +608,7 @@ class BalootMultiAgentEnv(gym.Env):
 
     def _infer_cards(self, agent):
         eps = 1e-3
-        set_types = ("Sera", "Khamseen", "Mia", "Arbamia")
+        set_type_names = ("Sera", "Khamseen", "Mia", "Arbamia")
 
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
@@ -630,7 +630,7 @@ class BalootMultiAgentEnv(gym.Env):
 
             declared_types = []
             for idx, count in enumerate(self.declared_sets[player]):
-                declared_types += [set_types[idx]] * int(count)
+                declared_types += [set_type_names[idx]] * int(count)
 
             candidates = []
             for s in all_sets:

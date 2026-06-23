@@ -139,6 +139,7 @@ def calculate_end_of_game_reward(env):
         # Determine winning team based on cumulative scores
         score_delta = env.cumulative_scores[0] - env.cumulative_scores[1]
         if score_delta == 0:
+            # Tied matches get no terminal win/loss shaping.
             return rewards
         winning_team_id = 0 if score_delta > 0 else 1
 

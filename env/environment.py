@@ -358,6 +358,7 @@ class BalootMultiAgentEnv(gym.Env):
         else:
             previous_trick_count = self.trick_count
             self._playing_step(acting_agent, action)
+            # A single play can complete at most one trick.
             trick_completed = self.trick_count != previous_trick_count
             if self.trick_count >= 8:
                 rewards = self._compute_score()
@@ -445,8 +446,8 @@ class BalootMultiAgentEnv(gym.Env):
         self.final_scores = final.copy()
         # Normalize round score-difference rewards by the match target score.
         reward_scale = float(TARGET_SCORE)
-        if reward_scale < 1.0:
-            raise ValueError("TARGET_SCORE must be at least 1.0 to normalize rewards.")
+        if reward_scale <= 1.0:
+            raise ValueError("TARGET_SCORE must be greater than 1.0 to normalize rewards.")
         diff0 = (final[0] - final[1]) / reward_scale
         diff1 = (final[1] - final[0]) / reward_scale
         rewards = {f"player_{i}": float(diff0 if team(i) == 0 else diff1) for i in range(4)}

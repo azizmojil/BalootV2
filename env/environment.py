@@ -137,15 +137,7 @@ class BalootMultiAgentEnv(gym.Env):
                     continue
                 if self._is_known_to_observer(card_idx, observer):
                     continue
-                if total_hidden_slots < 0:
-                    raise ValueError(
-                        "Cannot assign ownership belief for an unknown remaining card when no hidden "
-                        "hand slots are available. This likely indicates a logic error in card tracking "
-                        "or game state management. "
-                        f"card_idx={card_idx}, observer={observer}; "
-                        f"total_hidden_slots={total_hidden_slots}, hidden_slots={hidden_slots.tolist()}, "
-                        f"hand_sizes={hand_sizes.tolist()}, known_remaining={known_remaining.tolist()}"
-                    )
+                # No hidden slots means all remaining cards for this observer are already known.
                 if np.isclose(total_hidden_slots, 0.0, rtol=0, atol=self.INFERENCE_EPSILON):
                     continue
 

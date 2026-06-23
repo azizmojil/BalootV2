@@ -160,8 +160,9 @@ class MAPPOAgent:
 
         _, predicted_values = self.model([local_states, global_states], training=False)
         predicted_values = np.array(predicted_values, dtype=np.float32).flatten()
+        returns_var = np.var(returns)
         explained_variance = 1.0 - (
-            np.var(returns - predicted_values) / (np.var(returns) + 1e-8)
+            np.var(returns - predicted_values) / (returns_var + 1e-8)
         )
         self.last_update_stats = {
             "approx_kl": float(avg_kl.numpy()),

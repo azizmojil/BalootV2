@@ -34,6 +34,7 @@ SUN_ACTION = 33
 PARTNER_SUN_ACTION = 38
 BIDDING_SUIT_ACTIONS = {34: '♠', 35: '♥', 36: '♦', 37: '♣'}
 BIDDING_BUY_ACTIONS = (SUN_ACTION, PARTNER_SUN_ACTION, *BIDDING_SUIT_ACTIONS.keys())
+ALL_REWARDED_BIDDING_ACTIONS = (PASS_ACTION, *BIDDING_BUY_ACTIONS)
 
 
 def get_card_points(card, game_type, trump_suit):
@@ -206,13 +207,13 @@ def calculate_bidding_reward(env, agent_id, action):
     Calculates an immediate reward during the bidding phase.
     Grades pass, Sun, and Hukoom actions against the hand's Sun/Hukoom potential.
     """
-    if action not in (PASS_ACTION, SUN_ACTION, PARTNER_SUN_ACTION) and action not in BIDDING_SUIT_ACTIONS:
+    if action not in ALL_REWARDED_BIDDING_ACTIONS:
         return 0.0
 
     if action == PASS_ACTION and not _has_available_buy_action(env):
         return 0.0
 
-    # PARTNER_SUN_ACTION buys Sun for the acting agent's partner.
+    # PARTNER_SUN_ACTION sends the buy to the partner, so score the hand that receives face_up.
     scoring_agent = _partner_id(agent_id) if action == PARTNER_SUN_ACTION else agent_id
     strengths = _calculate_bidding_strengths(env, scoring_agent)
 

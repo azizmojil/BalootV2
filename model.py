@@ -3,7 +3,7 @@ from tensorflow.keras.layers import Input, Dense, Concatenate, Dropout, LeakyReL
 from tensorflow.keras.models import Model
 
 
-def build_mappo_network(local_obs_dim, global_state_dim, act_dim, dropout_rate=0.1):
+def build_mappo_network(local_obs_dim, global_state_dim, act_dim, dropout_rate=0.0):
     """
     Builds a Keras model for MAPPO with Centralized Training and Decentralized Execution (CTDE).
     The Actor (policy) uses ONLY the local observation.

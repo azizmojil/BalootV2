@@ -330,20 +330,17 @@ def trumping_rules(agent_hand, current_trick, trump_suit, agent_index):
     if highest is None:
         return full_card_mask(trump32) if trump32.sum()>0 else full_card_mask(hand32)
 
-    if team(owner) != team(agent_index):
-        beat32 = np.array([1.0 if (c in agent_hand
-                                   and c[0]==trump_suit
-                                   and HUKOOM_ORDER[c[1]]>HUKOOM_ORDER[highest[1]])
-                           else 0.0 for c in canonical_deck], dtype=np.float32)
+    beat32 = np.array([1.0 if (c in agent_hand
+                               and c[0]==trump_suit
+                               and HUKOOM_ORDER[c[1]]>HUKOOM_ORDER[highest[1]])
+                       else 0.0 for c in canonical_deck], dtype=np.float32)
 
-        if beat32.sum()>0:
-            return full_card_mask(beat32)
-        return full_card_mask(trump32) if trump32.sum()>0 else full_card_mask(hand32)
-
-    return full_card_mask(hand32)
+    if beat32.sum()>0:
+        return full_card_mask(beat32)
+    return full_card_mask(trump32) if trump32.sum()>0 else full_card_mask(hand32)
 
 
-def non_trump_lead_mask(agent_hand, current_trick, trump_suit, agent_index):
+def non_trump_lead_mask(agent_hand, current_trick, trick_suit, trump_suit, agent_index):
     canonical_deck = create_deck()
     hand32  = np.array([1.0 if c in agent_hand else 0.0 for c in canonical_deck], dtype=np.float32)
     trump32 = np.array([1.0 if (c in agent_hand and c[0]==trump_suit) else 0.0
@@ -352,6 +349,15 @@ def non_trump_lead_mask(agent_hand, current_trick, trump_suit, agent_index):
     played = [(i,c) for i,c in enumerate(current_trick) if c and c[0]==trump_suit]
 
     if not played:
+        highest_lead, owner = None, None
+        for i, c in enumerate(current_trick):
+            if c and c[0] == trick_suit:
+                if highest_lead is None or SUN_ORDER[c[1]] > SUN_ORDER[highest_lead[1]]:
+                    highest_lead, owner = c, i
+        
+        if owner is not None and team(owner) == team(agent_index):
+            return full_card_mask(hand32)
+            
         return full_card_mask(trump32) if trump32.sum()>0 else full_card_mask(hand32)
 
     owner, highest = played[0]
@@ -405,6 +411,7 @@ def get_full_play_mask_hukoom(agent_hand, current_trick, agent, trick_suit, trum
     # Agent has no cards of the lead suit — must trump if possible
     return non_trump_lead_mask(agent_hand,
                                current_trick,
+                               trick_suit,
                                trump_suit,
                                agent)
 
@@ -429,30 +436,7 @@ def translate_action(action):
     return mapping.get(action, f"Unknown Action {action}")
 
 
-def record_consecutive_all(suit, seq, sets_found):
-    """
-    Like record_consecutive_set, but for runs >=5 generates *all* 5-card windows.
-    """
-    # seq is sorted list of integer values
-    if len(seq) < 3:
-        return
-    if len(seq) == 3:
-        sets_found.append(_make_set(suit, seq, "Sera"))
-        return
-    if len(seq) == 4:
-        sets_found.append(_make_set(suit, seq, "Khamseen"))
-        return
 
-    # length >=5 — slide a window of size 5
-    for i in range(len(seq) - 4):
-        window = seq[i : i + 5]
-        sets_found.append(_make_set(suit, window, "Mia_c"))
-
-
-def _make_set(suit, seq_vals, set_type):
-    """Helper: build the {type, cards} dict from integer seq."""
-    cards = [(suit, value_to_rank(v)) for v in seq_vals]
-    return {"type": set_type, "cards": cards}
 
 
 def detect_sets_full(hand):
@@ -485,7 +469,7 @@ def detect_sets_full(hand):
         suit_groups[card[0]].append(card)
     for suit, cards in suit_groups.items():
         values = sorted({rank_value[c[1]] for c in cards})
-        record_consecutive_all(suit, values, candidate_sets)
+        _record_consecutive_all(suit, values, candidate_sets)
 
     # now dedupe by your SET_PRIORITY
     declared_sets = []

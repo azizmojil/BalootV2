@@ -345,12 +345,12 @@ class BalootMultiAgentEnv(gym.Env):
             # Check for failed round condition
             if self.pass_count >= 8:
                 rewards = {f"player_{i}": REWARD_ALL_PASS_PENALTY for i in range(4)}
-                dones = {f"player_{i}": True for i in range(4)}
+                dones = {f"player_{i}": self.match_over for i in range(4)}
                 self._reset_round()
             else:
                 rewards = {f"player_{i}": 0.0 for i in range(4)}
                 rewards[f"player_{acting_agent}"] = bidding_reward
-                dones = {f"player_{i}": False for i in range(4)}
+                dones = {f"player_{i}": self.match_over for i in range(4)}
         else:
             previous_trick_count = self.trick_count
             self._playing_step(acting_agent, action)
@@ -359,7 +359,7 @@ class BalootMultiAgentEnv(gym.Env):
             if self.trick_count >= 8:
                 rewards = self._compute_score()
                 self._update_cumulative_scores()
-                dones = {f"player_{i}": True for i in range(4)}
+                dones = {f"player_{i}": self.match_over for i in range(4)}
                 
                 # Add shaped end-of-round rewards and the final trick reward
                 end_of_round_rewards_arr = calculate_end_of_round_reward(self)
@@ -379,7 +379,7 @@ class BalootMultiAgentEnv(gym.Env):
                     rewards = getattr(self, "last_trick_reward", {f"player_{i}": 0.0 for i in range(4)})
                 else:
                     rewards = {f"player_{i}": 0.0 for i in range(4)}
-                dones = {f"player_{i}": False for i in range(4)}
+                dones = {f"player_{i}": self.match_over for i in range(4)}
         obs_dict = self.get_observation()
         infos = {f"player_{i}": {"cumulative_scores": self.cumulative_scores} for i in range(4)}
 
@@ -413,7 +413,7 @@ class BalootMultiAgentEnv(gym.Env):
         total = [base0 + set_bonus0, base1 + set_bonus1]
 
         if self.game_type == "Hukoom" and self.team_bant[buyer_team] % 10 == 6:
-            total[buyer_team] = max(0, total[buyer_team] - 6)
+            total[buyer_team] = max(0, total[buyer_team] - 1)
 
         final = [0, 0]
         if self.doubling_state:

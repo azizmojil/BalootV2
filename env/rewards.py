@@ -53,8 +53,8 @@ def get_card_points(card, game_type, trump_suit):
 
 
 def _get_augmented_bidding_hand(env, agent_id):
-    hand = list(getattr(env, "hands", [[]])[agent_id])
-    face_up = getattr(env, "face_up", None)
+    hand = list(env.hands[agent_id])
+    face_up = env.face_up
     if face_up is not None and face_up not in hand:
         hand.append(face_up)
     return hand
@@ -197,24 +197,21 @@ def calculate_bidding_reward(env, agent_id, action):
     Calculates an immediate reward during the bidding phase.
     Grades pass, Sun, and Hukoom actions against the hand's Sun/Hukoom potential.
     """
-    try:
-        # Action 38 buys Sun for the acting agent's teammate, who receives face_up.
-        scoring_agent = (agent_id + 2) % 4 if action == 38 else agent_id
-        strengths = _calculate_bidding_strengths(env, scoring_agent)
+    # Action 38 buys Sun for the acting agent's teammate; teammates are 2 seats apart.
+    scoring_agent = (agent_id + 2) % 4 if action == 38 else agent_id
+    strengths = _calculate_bidding_strengths(env, scoring_agent)
 
-        if action == 32:
-            best_strength = max(strengths["Sun"], strengths["best_hukoom"])
-            return _reward_for_passing(best_strength)
+    if action == 32:
+        best_strength = max(strengths["Sun"], strengths["best_hukoom"])
+        return _reward_for_passing(best_strength)
 
-        if action in (33, 38):
-            return _reward_for_sun_bid(strengths)
+    if action in (33, 38):
+        return _reward_for_sun_bid(strengths)
 
-        if action in BIDDING_SUIT_ACTIONS:
-            return _reward_for_hukoom_bid(strengths, BIDDING_SUIT_ACTIONS[action])
+    if action in BIDDING_SUIT_ACTIONS:
+        return _reward_for_hukoom_bid(strengths, BIDDING_SUIT_ACTIONS[action])
 
-        return 0.0
-    except (IndexError, KeyError, TypeError, ValueError):
-        return 0.0
+    return 0.0
 
 
 def calculate_end_of_game_reward(env):

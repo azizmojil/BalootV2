@@ -14,7 +14,9 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim, dropout_rate=0
     local_obs_input = Input(shape=(local_obs_dim,), name='local_obs_input')
     global_state_input = Input(shape=(global_state_dim,), name='global_state_input')
     bias_init = Zeros()
-    hidden_init = lambda: Orthogonal(gain=sqrt(2))
+
+    def hidden_init():
+        return Orthogonal(gain=sqrt(2))
 
     # --- ACTOR (Policy) Stream - uses ONLY local obs ---
     actor_net = Dense(256, kernel_initializer=hidden_init(), bias_initializer=bias_init)(local_obs_input)
@@ -22,8 +24,8 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim, dropout_rate=0
     actor_net = LeakyReLU(negative_slope=0.01)(actor_net)
     if dropout_rate > 0:
         actor_net = Dropout(dropout_rate)(actor_net)
-    actor_net = Dense(128, activation=LeakyReLU(negative_slope=0.01),
-                      kernel_initializer=hidden_init(), bias_initializer=bias_init)(actor_net)
+    actor_net = Dense(128, kernel_initializer=hidden_init(), bias_initializer=bias_init)(actor_net)
+    actor_net = LeakyReLU(negative_slope=0.01)(actor_net)
     policy_logits = Dense(act_dim, kernel_initializer=Orthogonal(gain=0.01),
                           bias_initializer=bias_init, name='policy_logits')(actor_net)
 
@@ -38,8 +40,8 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim, dropout_rate=0
     critic_net = LeakyReLU(negative_slope=0.01)(critic_net)
     if dropout_rate > 0:
         critic_net = Dropout(dropout_rate)(critic_net)
-    critic_net = Dense(128, activation=LeakyReLU(negative_slope=0.01),
-                       kernel_initializer=hidden_init(), bias_initializer=bias_init)(critic_net)
+    critic_net = Dense(128, kernel_initializer=hidden_init(), bias_initializer=bias_init)(critic_net)
+    critic_net = LeakyReLU(negative_slope=0.01)(critic_net)
     value_output = Dense(1, kernel_initializer=Orthogonal(gain=1.0),
                          bias_initializer=bias_init, name='value_output')(critic_net)
 

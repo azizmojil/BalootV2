@@ -34,6 +34,14 @@ def get_global_state(env):
         """Encodes a bidding action into a normalized scalar; 0 represents no bid."""
         return 0.0 if action is None else (action - 31) / 11.0
 
+    def encode_suit(suit):
+        """Encodes suits distinctly from no-trump and invalid values."""
+        if suit is None:
+            return 0.0
+        if suit not in suit_map:
+            return 1.0
+        return (suit_map[suit] + 1) / 5.0
+
     # Encode hands (assuming 8 cards per hand at the start)
     all_hands = [encode_card(c) for hand in env.hands for c in hand]
     # Pad hands to a fixed size in case the number of cards changes
@@ -61,7 +69,7 @@ def get_global_state(env):
         encode_player(env.trick_leader),
         phase_map.get(env.phase, 0),
         gt_map.get(env.game_type, 0) / 2.0,
-        (suit_map.get(env.trump_suit, -1) + 1) / 4.0,
+        encode_suit(env.trump_suit),
         encode_card(env.face_up)
     ]
 

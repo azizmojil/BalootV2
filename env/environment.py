@@ -280,10 +280,11 @@ class BalootMultiAgentEnv(gym.Env):
         canonical = create_deck()
         if self.trick_count == 0:
             sets = detect_sets(self.hands[agent])
-            sets_list = ["Sera", "Khamseen", "Mia", "Arbamia"]
+            set_type_to_index = {"Sera": 0, "Khamseen": 1, "Mia": 2, "Arbamia": 3}
             for s in sets:
-                i = sets_list.index(s["type"].split('_')[0])
-                self.declared_sets[agent, i] += 1.0
+                i = set_type_to_index.get(s["type"].split('_')[0])
+                if i is not None:
+                    self.declared_sets[agent, i] += 1.0
         if self.trick_count == 1:
             for s in self.declared_sets_info[agent]:
                 sets_list = list(SET_PRIORITY.keys())
@@ -506,7 +507,8 @@ class BalootMultiAgentEnv(gym.Env):
     def _update_cumulative_scores(self):
         self.cumulative_scores[0] += self.final_scores[0]
         self.cumulative_scores[1] += self.final_scores[1]
-        if self.cumulative_scores[0] >= TARGET_SCORE or self.cumulative_scores[1] >= TARGET_SCORE:
+        if (self.cumulative_scores[0] >= TARGET_SCORE or self.cumulative_scores[1] >= TARGET_SCORE) \
+                and self.cumulative_scores[0] != self.cumulative_scores[1]:
             self.match_over = True
 
     def _resolve_sets(self):

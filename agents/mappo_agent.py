@@ -27,10 +27,9 @@ class MAPPOAgent:
 
         local_obs_t = tf.convert_to_tensor(local_obs[None, :], dtype=tf.float32)
         global_state_t = tf.convert_to_tensor(global_state[None, :], dtype=tf.float32)
-        mask_t = tf.convert_to_tensor(mask, dtype=tf.float32)
+        mask_t = tf.convert_to_tensor(mask[None, :], dtype=tf.float32)
         
         logits, value = self.model([local_obs_t, global_state_t], training=False)
-        logits = tf.squeeze(logits, axis=0)
         value = tf.squeeze(value, axis=0)
         
         # Apply mask for action selection
@@ -38,11 +37,11 @@ class MAPPOAgent:
         masked_logits = tf.where(mask_t > 0, logits, very_negative)
 
         # Sample action from the masked distribution
-        action_tensor = tf.random.categorical(tf.nn.log_softmax(masked_logits)[None, :], num_samples=1)
+        action_tensor = tf.random.categorical(tf.nn.log_softmax(masked_logits, axis=1), num_samples=1)
         action = int(tf.squeeze(action_tensor).numpy())
 
         # The log probability must come from the masked distribution
-        log_prob = tf.nn.log_softmax(masked_logits)[action]
+        log_prob = tf.nn.log_softmax(masked_logits, axis=1)[0, action]
 
         return action, log_prob, value
 
@@ -111,7 +110,7 @@ class MAPPOAgent:
                 clip_fraction = tf.reduce_mean(
                     tf.cast(tf.abs(ratio - 1.0) > self.clip_range, tf.float32)
                 )
-                approx_kl = tf.reduce_mean(tf.stop_gradient(batch_old_log_probs) - new_log_probs)
+                approx_kl = tf.reduce_mean((ratio - 1.0) - log_ratio)
                 
                 surr1 = ratio * batch_advantages
                 surr2 = tf.clip_by_value(ratio, 1 - self.clip_range, 1 + self.clip_range) * batch_advantages

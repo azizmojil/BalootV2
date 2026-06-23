@@ -59,7 +59,7 @@ def get_global_state(env):
         encode_player(env.dealer),
         encode_player(env.current_agent),
         encode_player(env.trick_leader),
-        phase_map.get(env.phase, -1),
+        phase_map.get(env.phase, 0),
         gt_map.get(env.game_type, 0) / 2.0,
         (suit_map.get(env.trump_suit, -1) + 1) / 4.0,
         encode_card(env.face_up)

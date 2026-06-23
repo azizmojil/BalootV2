@@ -6,7 +6,7 @@ from utils import flatten_obs
 class MAPPOAgent:
     def __init__(self, local_obs_dim, global_state_dim, act_dim, model_builder,
                  lr=3e-4, gamma=0.99, clip_range=0.2, epochs=10, 
-                 batch_size=64, value_coef=0.5, entropy_coef=0.01, dropout_rate=0.0, gae_lambda=0.95):
+                 batch_size=64, value_coef=0.5, entropy_coef=0.01, gae_lambda=0.95):
         self.act_dim = act_dim
         self.gamma = gamma
         self.clip_range = clip_range
@@ -16,7 +16,7 @@ class MAPPOAgent:
         self.value_coef = value_coef
         self.entropy_coef = entropy_coef
         
-        self.model = model_builder(local_obs_dim, global_state_dim, act_dim, dropout_rate)
+        self.model = model_builder(local_obs_dim, global_state_dim, act_dim)
         self.optimizer = Adam(learning_rate=lr)
         self.value_func = self.get_value_for_single_obs # Start with the single-obs version
         self.last_update_stats = {}

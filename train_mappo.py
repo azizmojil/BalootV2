@@ -24,7 +24,6 @@ config = {
     "epochs": 10,
     "batch_size": 1024,
     "gae_lambda": 0.95,
-    "dropout_rate": 0.0,
     "start_entropy": 0.05,
     "end_entropy": 0.01,
 }
@@ -119,7 +118,7 @@ if __name__ == "__main__":
                        lr=config["start_lr"], gamma=config["gamma"],
                        clip_range=config["clip_range"], epochs=config["epochs"],
                        batch_size=config["batch_size"], gae_lambda=config["gae_lambda"],
-                       dropout_rate=config["dropout_rate"], entropy_coef=config["start_entropy"])
+                       entropy_coef=config["start_entropy"])
 
     run_name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-MAPPO"
     log_dir = os.path.join("logs", "monitor", run_name)

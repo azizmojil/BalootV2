@@ -447,7 +447,7 @@ class BalootMultiAgentEnv(gym.Env):
         # Normalize round score-difference rewards by the match target score.
         reward_scale = float(TARGET_SCORE)
         if reward_scale <= 1.0:
-            raise ValueError("TARGET_SCORE must be greater than 1.0 to normalize rewards.")
+            raise ValueError(f"TARGET_SCORE must be greater than 1.0 for reward normalization. Current value: {reward_scale}")
         diff0 = (final[0] - final[1]) / reward_scale
         diff1 = (final[1] - final[0]) / reward_scale
         rewards = {f"player_{i}": float(diff0 if team(i) == 0 else diff1) for i in range(4)}

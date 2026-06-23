@@ -113,7 +113,8 @@ def calculate_bidding_reward(env, agent_id, action):
 
     # Action 32 is "Pass"
     if action == 32:
-        return REWARD_PASS_PENALTY if high_card_count >= PASS_PENALTY_HIGH_CARD_THRESHOLD else 0.0
+        should_penalize_pass = high_card_count >= PASS_PENALTY_HIGH_CARD_THRESHOLD
+        return REWARD_PASS_PENALTY if should_penalize_pass else 0.0
 
     # If the agent made a bid (not a pass), give a small positive signal.
     # We can't use declared_sets_info here because it's not populated until

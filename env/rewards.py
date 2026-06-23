@@ -112,9 +112,9 @@ def _reward_for_passing(best_strength):
 
 
 def _has_available_buy_action(env):
-    if not hasattr(env, "_bidding_mask"):
+    if not hasattr(env, "_bidding_action"):
         return True
-    bidding_mask = env._bidding_mask()
+    bidding_mask = env._bidding_action()
     return any(bidding_mask[action] == 1 for action in BIDDING_BUY_ACTIONS)
 
 

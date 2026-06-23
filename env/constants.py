@@ -1,0 +1,16 @@
+SUITS = ['♠', '♥', '♦', '♣']
+RANKS = ['7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+SUN_ORDER = {'A': 7, '10': 6, 'K': 5, 'Q': 4, 'J': 3, '9': 2, '8': 1, '7': 0}
+SUN_POINTS = {'A': 11, '10': 10, 'K': 4, 'Q': 3, 'J': 2, '9': 0, '8': 0, '7': 0}
+HUKOOM_ORDER = {'J': 7, '9': 6, 'A': 5, '10': 4, 'K': 3, 'Q': 2, '8': 1, '7': 0}
+HUKOOM_POINTS = {'J': 20, '9': 14, 'A': 11, '10': 10, 'K': 4, 'Q': 3, '8': 0, '7': 0}
+SET_PRIORITY = {'Arbamia': 5, 'Mia_c': 4, 'Mia_s': 3, 'Khamseen': 2, 'Sera': 1}
+SET_BONUS_HUKOOM = {'Sera': 20, 'Khamseen': 50, 'Mia_c': 100, 'Mia_s': 100, 'Arbamia': 100}
+SET_BONUS_SUN = {'Sera': 20, 'Khamseen': 50, 'Mia_c': 100, 'Mia_s': 100, 'Arbamia': 200}
+BASE_SCORE_HUKOOM = 16
+BASE_SCORE_SUN = 26
+KAPUT_HUKOOM = 25
+KAPUT_SUN = 44
+TARGET_SCORE = 152
+MAX_PAST_TRICKS = 8
+BID_ACTIONS = [32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42]

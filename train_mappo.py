@@ -175,7 +175,7 @@ if __name__ == "__main__":
             for p in range(NUM_PLAYERS):
                 if len(buffers[p]["rewards"]) > 0:
                     buffers[p]["rewards"][-1] += rewards.get(f"player_{p}", 0.0)
-                    if round_done or match_done:
+                    if match_done:
                         buffers[p]["dones"][-1] = 1.0
 
             # Accumulate per-episode rewards for logging

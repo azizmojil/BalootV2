@@ -73,10 +73,10 @@ class MAPPOAgent:
         global_states = np.array(memory["global_states"], dtype=np.float32)
         masks = np.array(memory["action_masks"], dtype=np.float32)
         actions = np.array(memory["actions"], dtype=np.int32)
-        old_log_probs = np.array(memory["log_probs"], dtype=np.float32)
-        old_values = np.array(memory["values"], dtype=np.float32)
-        advantages = np.array(memory["advantages"], dtype=np.float32)
-        returns = np.array(memory["returns"], dtype=np.float32)
+        old_log_probs = np.array(memory["log_probs"], dtype=np.float32).flatten()
+        old_values = np.array(memory["values"], dtype=np.float32).flatten()
+        advantages = np.array(memory["advantages"], dtype=np.float32).flatten()
+        returns = np.array(memory["returns"], dtype=np.float32).flatten()
 
         # Normalize advantages over the entire batch of experience
         advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)

@@ -443,6 +443,7 @@ class BalootMultiAgentEnv(gym.Env):
 
         self.last_round_score = final.copy()
         self.final_scores = final.copy()
+        # Normalize round score-difference rewards by the match target score.
         reward_scale = max(float(TARGET_SCORE), 1.0)
         diff0 = (final[0] - final[1]) / reward_scale
         diff1 = (final[1] - final[0]) / reward_scale

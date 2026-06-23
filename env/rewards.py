@@ -135,12 +135,10 @@ def calculate_end_of_game_reward(env):
             return rewards
 
         # Determine winning team based on cumulative scores
-        if env.cumulative_scores[0] > env.cumulative_scores[1]:
-            winning_team_id = 0
-        elif env.cumulative_scores[1] > env.cumulative_scores[0]:
-            winning_team_id = 1
-        else:
+        score_delta = env.cumulative_scores[0] - env.cumulative_scores[1]
+        if score_delta == 0:
             return rewards
+        winning_team_id = 0 if score_delta > 0 else 1
 
         for player_id in range(4):
             if player_id % 2 == winning_team_id:

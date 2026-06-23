@@ -103,6 +103,7 @@ class BalootMultiAgentEnv(gym.Env):
 
         canonical_deck = create_deck()
         face_up_idx = canonical_deck.index(self.face_up) if self.face_up is not None else None
+        hand_sizes = np.array([len(hand) for hand in self.hands], dtype=np.float32)
 
         for observer in observers:
             known_remaining = np.zeros(4, dtype=np.float32)
@@ -114,7 +115,7 @@ class BalootMultiAgentEnv(gym.Env):
                     known_remaining[owners[0]] += 1.0
 
             hidden_slots = np.array([
-                max(0.0, len(self.hands[player]) - known_remaining[player])
+                max(0.0, hand_sizes[player] - known_remaining[player])
                 for player in range(4)
             ], dtype=np.float32)
             total_hidden_slots = hidden_slots.sum()
@@ -132,9 +133,14 @@ class BalootMultiAgentEnv(gym.Env):
                     continue
 
                 prior = self.card_ownership[card_idx, :, observer] * hidden_slots
-                if prior.sum() <= 0:
+                prior_sum = prior.sum()
+                if prior_sum <= 0:
                     prior = hidden_slots.copy()
-                self.card_ownership[card_idx, :, observer] = prior / prior.sum()
+                    prior_sum = prior.sum()
+                if prior_sum > 0:
+                    self.card_ownership[card_idx, :, observer] = prior / prior_sum
+                else:
+                    self._clear_card_owner_belief(card_idx, observers=[observer])
 
     def get_observation(self):
         ag = self.current_agent
@@ -600,8 +606,9 @@ class BalootMultiAgentEnv(gym.Env):
 
             self.declared_sets_info = revealed
 
-    def _infer_cards(self, agent, eps=1e-3):
+    def _infer_cards(self, agent, epsilon=1e-3):
         TYPE_IDX = {0: "Sera", 1: "Khamseen", 2: "Mia", 3: "Arbamia"}
+        eps = epsilon
 
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1

@@ -283,8 +283,9 @@ class BalootMultiAgentEnv(gym.Env):
             set_type_to_index = {"Sera": 0, "Khamseen": 1, "Mia_c": 2, "Mia_s": 2, "Arbamia": 3}
             for s in sets:
                 set_index = set_type_to_index.get(s["type"])
-                if set_index is not None:
-                    self.declared_sets[agent, set_index] += 1.0
+                if set_index is None:
+                    raise ValueError(f"Unknown set type: {s['type']}")
+                self.declared_sets[agent, set_index] += 1.0
         if self.trick_count == 1:
             for s in self.declared_sets_info[agent]:
                 sets_list = list(SET_PRIORITY.keys())

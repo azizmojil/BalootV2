@@ -24,21 +24,21 @@ def get_global_state(env):
         suit, rank = card
         if rank not in rank_map or suit not in suit_map:
             return 0.0
-        return ((rank_map[rank] * 4 + suit_map[suit]) + 1) / 32.0
+        return ((rank_map[rank] * 4 + suit_map[suit]) + 1) / 33.0
 
     def encode_player(player):
         """Encodes a player id into a normalized scalar; 0 represents no player."""
-        return 0.0 if player is None else (player + 1) / 4.0
+        return 0.0 if player is None else (player + 1) / 5.0
 
     def encode_action(action):
         """Encodes a bidding action into a normalized scalar; 0 represents no bid."""
         if action not in BID_ACTIONS:
             return 0.0
         min_action, max_action = min(BID_ACTIONS), max(BID_ACTIONS)
-        return (action - min_action + 1) / (max_action - min_action + 1)
+        return (action - min_action + 1) / (max_action - min_action + 2)
 
     def encode_suit(suit):
-        """Encodes suits distinctly from no-trump and invalid values."""
+        """Encodes suits distinctly from no-trump/None and invalid values."""
         if suit is None:
             return 0.0
         if suit not in suit_map:

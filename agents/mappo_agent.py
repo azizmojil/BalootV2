@@ -23,7 +23,8 @@ class MAPPOAgent:
 
     def select_action(self, local_obs, global_state, mask):
         if not np.any(mask > 0):
-            raise ValueError("Cannot select an action because the action mask has no valid actions.")
+            raise ValueError(f"Cannot select an action because the action mask has no valid actions. "
+                             f"mask_shape={np.shape(mask)}")
 
         local_obs_t = tf.convert_to_tensor(local_obs[None, :], dtype=tf.float32)
         global_state_t = tf.convert_to_tensor(global_state[None, :], dtype=tf.float32)
@@ -35,13 +36,14 @@ class MAPPOAgent:
         # Apply mask for action selection
         very_negative = -1e10 * tf.ones_like(logits)
         masked_logits = tf.where(mask_t > 0, logits, very_negative)
+        masked_log_probs = tf.nn.log_softmax(masked_logits, axis=1)
 
         # Sample action from the masked distribution
-        action_tensor = tf.random.categorical(tf.nn.log_softmax(masked_logits, axis=1), num_samples=1)
+        action_tensor = tf.random.categorical(masked_log_probs, num_samples=1)
         action = int(tf.squeeze(action_tensor).numpy())
 
         # The log probability must come from the masked distribution
-        log_prob = tf.nn.log_softmax(masked_logits, axis=1)[0, action]
+        log_prob = masked_log_probs[0, action]
 
         return action, log_prob, value
 

@@ -8,6 +8,7 @@ from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, c
 class BalootMultiAgentEnv(gym.Env):
     metadata = {"render_modes": ["human"]}
     INFERENCE_EPSILON = 1e-3
+    SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
 
     def __init__(self):
         super().__init__()
@@ -83,6 +84,10 @@ class BalootMultiAgentEnv(gym.Env):
         return self.get_observation()
 
     def _set_known_card_owner(self, card_idx, owner, observers=None):
+        if not 0 <= card_idx < 32:
+            raise ValueError(f"card_idx must be in [0, 32), got {card_idx}")
+        if not 0 <= owner < 4:
+            raise ValueError(f"owner must be in [0, 4), got {owner}")
         if observers is None:
             observers = range(4)
         for observer in observers:
@@ -90,6 +95,8 @@ class BalootMultiAgentEnv(gym.Env):
             self.card_ownership[card_idx, owner, observer] = 1.0
 
     def _clear_card_owner_belief(self, card_idx, observers=None):
+        if not 0 <= card_idx < 32:
+            raise ValueError(f"card_idx must be in [0, 32), got {card_idx}")
         if observers is None:
             observers = range(4)
         for observer in observers:
@@ -130,7 +137,7 @@ class BalootMultiAgentEnv(gym.Env):
                 if self._is_known_to_observer(card_idx, observer):
                     continue
                 if total_hidden_slots <= 0:
-                    raise RuntimeError(
+                    raise ValueError(
                         "Cannot assign ownership belief for an unknown remaining card when no hidden "
                         "hand slots are available. This likely indicates a logic error in card tracking "
                         "or game state management. "
@@ -142,12 +149,9 @@ class BalootMultiAgentEnv(gym.Env):
                 prior = self.card_ownership[card_idx, :, observer] * hidden_slots
                 prior_sum = prior.sum()
                 if prior_sum <= 0:
-                    prior = hidden_slots.copy()
-                    prior_sum = prior.sum()
-                if prior_sum > 0:
-                    self.card_ownership[card_idx, :, observer] = prior / prior_sum
-                else:
-                    self._clear_card_owner_belief(card_idx, observers=[observer])
+                    prior = hidden_slots
+                    prior_sum = total_hidden_slots
+                self.card_ownership[card_idx, :, observer] = prior / prior_sum
 
     def get_observation(self):
         ag = self.current_agent
@@ -615,11 +619,10 @@ class BalootMultiAgentEnv(gym.Env):
 
     def _infer_cards(self, agent):
         eps = self.INFERENCE_EPSILON
-        SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
 
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
-                  and self.card_ownership[c, :, agent].sum() > eps
+                  and np.isclose(self.card_ownership[c, :, agent].sum(), 1.0, atol=eps)
                   and not np.any(np.isclose(self.card_ownership[c, :, agent], 1.0))]
 
         for player in range(4):
@@ -637,7 +640,7 @@ class BalootMultiAgentEnv(gym.Env):
 
             declared_types = []
             for idx, count in enumerate(self.declared_sets[player]):
-                declared_types += [SET_TYPE_BY_INDEX[idx]] * int(count)
+                declared_types += [self.SET_TYPE_BY_INDEX[idx]] * int(count)
 
             candidates = []
             for s in all_sets:

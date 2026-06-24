@@ -153,10 +153,12 @@ def get_state():
         state["trick_history"] = trick_history
 
     valid_actions = []
-    valid_indices = set()
+    valid_indices = (
+        {int(idx) for idx in np.where(game_state["obs_dict"]['action_mask'] == 1)[0]}
+        if state["is_human_turn"]
+        else set()
+    )
     if state["is_human_turn"]:
-        mask = game_state["obs_dict"]['action_mask']
-        valid_indices = {int(idx) for idx in np.where(mask == 1)[0]}
         for idx in valid_indices:
             valid_actions.append({"index": int(idx), "text": translate_action(idx)})
     state["valid_actions"] = valid_actions

@@ -408,14 +408,14 @@
                 const fanSpreadBase = Math.max(state.hand.length - 1, 1);
                 state.hand.forEach((handCard, index) => {
                     const div = document.createElement('div');
-                    const card = handCard.text || handCard;
+                    const card = handCard.text;
                     const safeCard = escapeHtml(card);
                     // Normalize each card position around center to fan symmetrically from left to right.
                     const spread = state.hand.length > 1 ? (index / fanSpreadBase - FAN_CENTER_OFFSET) : 0;
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
                     const actionIndex = handCard.action_index;
-                    const canPlayCard = isHumanTurn && state.phase !== 'bidding' && actionIndex !== null && actionIndex !== undefined;
+                    const canPlayCard = isHumanTurn && state.phase !== 'bidding' && actionIndex != null;
                     div.className = `playing-card ${getCardColorClass(card)} hand-card ${canPlayCard ? 'playable-card' : ''}`;
                     div.dataset.card = safeCard;
                     div.style.setProperty('--fan-rotation', `${rotation}deg`);

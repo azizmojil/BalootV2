@@ -500,7 +500,7 @@ class BalootMultiAgentEnv(gym.Env):
         failed_to_follow = (
             self.trick_suit is not None
             and chosen_card[0] != self.trick_suit
-            and not any(card != chosen_card and card[0] == self.trick_suit for card in self.hands[agent])
+            and not any(card[0] == self.trick_suit for card in self.hands[agent])
         )
         self.hands[agent].remove(chosen_card)
         idx = canonical.index(chosen_card)
@@ -754,7 +754,7 @@ class BalootMultiAgentEnv(gym.Env):
             "Sera": max(0, int(round(declared[0])) - revealed.get("Sera", 0)),
             "Khamseen": max(0, int(round(declared[1])) - revealed.get("Khamseen", 0)),
             # Declared Mia is a single public bucket; revealed Mia splits into consecutive and same-rank variants.
-            # Mia_c is a consecutive run, while Mia_s is four cards of the same rank.
+            # Mia_c is a consecutive run, while Mia_s is four cards of the same rank across all suits.
             "Mia": max(0, int(round(declared[2])) - revealed.get("Mia_c", 0) - revealed.get("Mia_s", 0)),
             "Arbamia": max(0, int(round(declared[3])) - revealed.get("Arbamia", 0)),
         }
@@ -832,7 +832,7 @@ class BalootMultiAgentEnv(gym.Env):
                     counts[card_to_idx[card]] += 1.0
 
             max_count = counts.max()
-            if max_count <= 0:
+            if max_count <= eps:
                 continue
 
             for card_idx in hidden:
@@ -840,7 +840,7 @@ class BalootMultiAgentEnv(gym.Env):
                 if prior[player] <= eps:
                     continue
 
-                set_support = counts[card_idx] / max_count
+                set_support = np.float32(counts[card_idx] / max_count)
                 likelihood = np.ones(self.NUM_PLAYERS, dtype=np.float32)
                 # Non-declaring owners stay neutral; the declaring owner gets boosted by normalized set support.
                 likelihood[player] += self.SET_INFERENCE_STRENGTH * set_support

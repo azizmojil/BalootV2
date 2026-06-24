@@ -498,7 +498,12 @@ class BalootMultiAgentEnv(gym.Env):
         chosen_card = canonical[action]
         self.hands[agent].remove(chosen_card)
         idx = canonical.index(chosen_card)
-        if self.trick_suit is not None and chosen_card[0] != self.trick_suit:
+        failed_to_follow = (
+            self.trick_suit is not None
+            and chosen_card[0] != self.trick_suit
+            and not any(card[0] == self.trick_suit for card in self.hands[agent])
+        )
+        if failed_to_follow:
             self._eliminate_void_suit(agent, self.trick_suit)
         self.remaining_cards[idx] = 0.0
         self._set_known_card_owner(idx, agent)
@@ -747,6 +752,7 @@ class BalootMultiAgentEnv(gym.Env):
         hidden_counts = {
             "Sera": int(round(declared[0])) - revealed.get("Sera", 0),
             "Khamseen": int(round(declared[1])) - revealed.get("Khamseen", 0),
+            # Declared Mia is a single public bucket; revealed Mia splits into consecutive and same-rank variants.
             "Mia": int(round(declared[2])) - revealed.get("Mia_c", 0) - revealed.get("Mia_s", 0),
             "Arbamia": int(round(declared[3])) - revealed.get("Arbamia", 0),
         }
@@ -790,6 +796,7 @@ class BalootMultiAgentEnv(gym.Env):
         return candidates
 
     def _infer_cards(self, observer=None):
+        """Apply public set-declaration likelihoods to one observer or all observers."""
         if observer is None:
             for player_observer in range(4):
                 self._infer_cards(player_observer)
@@ -811,7 +818,7 @@ class BalootMultiAgentEnv(gym.Env):
                      if self.remaining_cards[c] == 1
                      and np.isclose(self.card_ownership[c, player, observer], 1.0)]
 
-            pool_idxs = sorted(set(known + hidden))
+            pool_idxs = known + hidden
             pool_cards = [canonical_deck[c] for c in pool_idxs]
             candidates = self._possible_declared_sets(pool_cards, hidden_types)
             if not candidates:

@@ -10,11 +10,11 @@
         :root {
             --trick-card-left-near-horizontal: 84deg;
             --trick-card-right-near-horizontal: -84deg;
-            --card-corner-font-size: 0.68rem;
-            --card-rank-font-size: 1.45rem;
+            --card-corner-font-size: 0.75rem;
+            --card-rank-font-size: 1.6rem;
             --card-rank-letter-spacing: -0.08em;
-            --hand-card-overlap: -18px;
-            --hand-card-hover-lift: 22px;
+            --hand-card-overlap: -22px;
+            --hand-card-hover-lift: 24px;
             --hand-card-hover-scale: 1.06;
         }
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
@@ -28,8 +28,8 @@
         .bg-gradient { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); }
         .playing-card {
             position: relative;
-            width: 68px;
-            height: 96px;
+            width: 78px;
+            height: 110px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -108,8 +108,8 @@
         .trick-slot.right { top: 50%; right: 0.75rem; transform: translateY(-50%); }
         .trick-slot.bottom { bottom: 0; left: 50%; transform: translateX(-50%); }
         .trick-card-space {
-            width: 76px;
-            height: 104px;
+            width: 88px;
+            height: 120px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -122,14 +122,27 @@
         .trick-slot.top .playing-card { transform: rotate(180deg); }
         .trick-slot.bottom .playing-card { transform: rotate(0deg); border-color: #2563eb; }
         .mini-card {
-            width: 30px;
-            height: 42px;
+            width: 34px;
+            height: 48px;
             border-width: 2px;
             box-shadow: inset 0 0 0 2px #fef3c7, 3px 3px 0 rgba(0, 0, 0, 0.25);
         }
         .mini-card::before,
         .mini-card::after { display: none; }
         .mini-card .card-rank { font-size: 0.8rem; }
+        .playable-card {
+            cursor: pointer;
+            border-color: #38bdf8;
+            box-shadow:
+                inset 0 0 0 3px #fef3c7,
+                inset 0 0 0 6px rgba(30, 41, 59, 0.18),
+                5px 5px 0 rgba(0, 0, 0, 0.35),
+                0 0 18px rgba(56, 189, 248, 0.5);
+        }
+        .playable-card:focus-visible {
+            outline: 3px solid #38bdf8;
+            outline-offset: 5px;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col p-4 bg-gradient">
@@ -173,6 +186,7 @@
                 <div id="bidding-table" class="hidden text-center">
                     <p class="text-slate-400 mb-4 font-medium tracking-widest uppercase text-sm">Face Up Card</p>
                     <div id="face-up-card" class="playing-card mx-auto text-3xl"></div>
+                    <div id="bidding-actions" class="mt-5 flex gap-3 flex-wrap justify-center min-h-[50px]"></div>
                 </div>
 
                 <!-- Playing Phase -->
@@ -233,6 +247,8 @@
 
     <script>
         let pollTimer = null;
+        // Provides visible pacing between AI moves for better user experience.
+        const AI_TURN_DELAY_MS = 1000;
         // Maximum hand-card rotation, vertical lift, and center point for the fan layout.
         const FAN_ROTATION_DEGREES = 38;
         const FAN_VERTICAL_OFFSET = 28;
@@ -305,6 +321,7 @@
 
         async function takeAction(index) {
             document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse">Processing...</span>';
+            document.getElementById('bidding-actions').innerHTML = '';
             await fetch('/action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -313,12 +330,13 @@
             fetchState();
         }
 
-        async function fetchState() {
+        async function fetchState({ advanceAi = false } = {}) {
             clearTimeout(pollTimer);
             try {
-                const res = await fetch('/state');
+                const res = await fetch(`/state${advanceAi ? '?advance_ai=1' : ''}`);
                 if (!res.ok) return;
                 const state = await res.json();
+                const isHumanTurn = state.is_human_turn && !state.done;
                 
                 document.getElementById('game-info').classList.remove('hidden');
                 
@@ -389,35 +407,57 @@
                 const handContainer = document.getElementById('player-hand');
                 handContainer.innerHTML = '';
                 const fanSpreadBase = Math.max(state.hand.length - 1, 1);
-                state.hand.forEach((card, index) => {
+                state.hand.forEach((handCard, index) => {
                     const div = document.createElement('div');
+                    const card = handCard.text;
+                    const safeCard = escapeHtml(card);
                     // Normalize each card position around center to fan symmetrically from left to right.
                     const spread = state.hand.length > 1 ? (index / fanSpreadBase - FAN_CENTER_OFFSET) : 0;
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
-                    div.className = `playing-card ${getCardColorClass(card)} hand-card`;
-                    div.dataset.card = escapeHtml(card);
+                    const actionIndex = handCard.action_index;
+                    const canPlayCard = isHumanTurn && state.phase !== 'bidding' && actionIndex !== null;
+                    div.className = `playing-card ${getCardColorClass(card)} hand-card ${canPlayCard ? 'playable-card' : ''}`;
+                    div.dataset.card = safeCard;
                     div.style.setProperty('--fan-rotation', `${rotation}deg`);
                     div.style.setProperty('--fan-offset', `${offset}px`);
                     div.style.zIndex = index + 1;
-                    div.innerHTML = `<span class="card-rank">${escapeHtml(card)}</span>`;
+                    div.innerHTML = `<span class="card-rank">${safeCard}</span>`;
+                    if (canPlayCard) {
+                        div.title = `Play ${safeCard}`;
+                        div.tabIndex = 0;
+                        div.setAttribute('role', 'button');
+                        div.setAttribute('aria-label', `Play ${safeCard}`);
+                        div.onclick = () => takeAction(actionIndex);
+                        div.onkeydown = (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                takeAction(actionIndex);
+                            }
+                        };
+                    }
                     handContainer.appendChild(div);
                 });
 
                 // Actions
                 const actionsContainer = document.getElementById('actions-container');
+                const biddingActions = document.getElementById('bidding-actions');
                 actionsContainer.innerHTML = '';
-                if (state.valid_actions.length > 0 && !state.done) {
+                biddingActions.innerHTML = '';
+                if (isHumanTurn && state.phase === 'bidding') {
                     state.valid_actions.forEach(act => {
                         const btn = document.createElement('button');
                         btn.className = 'bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white px-4 py-2 rounded-lg transition card font-semibold';
                         btn.innerHTML = formatCardDarkText(act.text);
                         btn.onclick = () => takeAction(act.index);
-                        actionsContainer.appendChild(btn);
+                        biddingActions.appendChild(btn);
                     });
+                    actionsContainer.innerHTML = '<span class="text-slate-500 italic">Choose a bid under the face-up card.</span>';
+                } else if (isHumanTurn) {
+                    actionsContainer.innerHTML = '<span class="text-blue-300 font-semibold">Click a highlighted card in your hand to play it.</span>';
                 } else if (!state.done) {
                     actionsContainer.innerHTML = '<span class="text-slate-500 italic animate-pulse">Waiting for AI turns...</span>';
-                    pollTimer = setTimeout(fetchState, 1500); // Poll for AI turns
+                    pollTimer = setTimeout(() => fetchState({ advanceAi: true }), AI_TURN_DELAY_MS);
                 } else {
                     actionsContainer.innerHTML = '<span class="text-emerald-400 font-bold text-xl">Game Over!</span>';
                 }

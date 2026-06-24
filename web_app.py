@@ -156,7 +156,7 @@ def get_state():
     valid_indices = set()
     if state["is_human_turn"]:
         mask = game_state["obs_dict"]['action_mask']
-        valid_indices = set(map(int, np.where(mask == 1)[0]))
+        valid_indices = set(np.where(mask == 1)[0])
         for idx in valid_indices:
             valid_actions.append({"index": int(idx), "text": translate_action(idx)})
     state["valid_actions"] = valid_actions

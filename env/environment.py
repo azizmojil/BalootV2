@@ -500,14 +500,14 @@ class BalootMultiAgentEnv(gym.Env):
             self.trick_suit is not None
             and any(card[0] == self.trick_suit for card in self.hands[agent])
         )
-        failed_to_follow = (
+        proved_void_in_trick_suit = (
             self.trick_suit is not None
             and chosen_card[0] != self.trick_suit
             and not had_trick_suit
         )
         self.hands[agent].remove(chosen_card)
         idx = canonical.index(chosen_card)
-        if failed_to_follow:
+        if proved_void_in_trick_suit:
             self._eliminate_void_suit(agent, self.trick_suit)
         self.remaining_cards[idx] = 0.0
         self._set_known_card_owner(idx, agent)
@@ -757,7 +757,7 @@ class BalootMultiAgentEnv(gym.Env):
             "Sera": max(0, int(round(declared[0])) - revealed.get("Sera", 0)),
             "Khamseen": max(0, int(round(declared[1])) - revealed.get("Khamseen", 0)),
             # Declared Mia is a single public bucket; revealed Mia splits into consecutive and same-rank variants.
-            # Mia_c and Mia_s are alternative revelations: consecutive run or same rank across all suits.
+            # Mia_c and Mia_s are alternative revelations: a consecutive run, or all suits of 10/J/Q/K.
             "Mia": max(0, int(round(declared[2])) - revealed.get("Mia_c", 0) - revealed.get("Mia_s", 0)),
             "Arbamia": max(0, int(round(declared[3])) - revealed.get("Arbamia", 0)),
         }
@@ -844,7 +844,7 @@ class BalootMultiAgentEnv(gym.Env):
                     continue
 
                 set_support = counts[card_idx] / max_count
-                # Non-declaring owners stay neutral; the declaring owner gets boosted by normalized set support.
+                # Neutral means other owners keep their priors while the declaring owner is boosted.
                 post = prior.copy()
                 post[player] *= 1.0 + self.SET_INFERENCE_STRENGTH * set_support
                 post_sum = post.sum()

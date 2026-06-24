@@ -7,6 +7,7 @@ from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, c
 
 class BalootMultiAgentEnv(gym.Env):
     metadata = {"render_modes": ["human"]}
+    NUM_PLAYERS = 4
     INFERENCE_EPSILON = 1e-3
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
     OBSERVATION_SCHEMA = {
@@ -176,11 +177,11 @@ class BalootMultiAgentEnv(gym.Env):
     def _relative_player_one_hot(self, player, observer, include_none=False):
         rel = self._relative_player_index(player, observer)
         if include_none:
-            return self._one_hot(4 if rel is None else rel, 5)
-        return self._one_hot(rel, 4)
+            return self._one_hot(self.NUM_PLAYERS if rel is None else rel, self.NUM_PLAYERS + 1)
+        return self._one_hot(rel, self.NUM_PLAYERS)
 
     def _relative_player_order(self, observer):
-        return [(observer + offset) % 4 for offset in range(4)]
+        return [(observer + offset) % self.NUM_PLAYERS for offset in range(self.NUM_PLAYERS)]
 
     def _relative_rows(self, values, observer):
         rows = self._relative_player_order(observer)
@@ -212,12 +213,12 @@ class BalootMultiAgentEnv(gym.Env):
 
     def _bidding_history_features(self, observer):
         features = []
-        for item in self.bidding_history[-4:]:
+        for item in self.bidding_history[-self.NUM_PLAYERS:]:
             actor, action = item
             features.append(self._relative_player_one_hot(actor, observer))
             features.append(self._bid_action_one_hot(action))
-        while len(features) < 8:
-            features.append(np.zeros(4, dtype=np.float32))
+        while len(features) < self.NUM_PLAYERS * 2:
+            features.append(np.zeros(self.NUM_PLAYERS, dtype=np.float32))
             features.append(np.zeros(len(BID_ACTIONS), dtype=np.float32))
         return np.concatenate(features).astype(np.float32)
 
@@ -284,7 +285,7 @@ class BalootMultiAgentEnv(gym.Env):
         own_knowledge_flat = own_knowledge.flatten()
 
         current_order = self.trick_order if self.trick_order is not None else [
-            (self.trick_leader + i) % 4 for i in range(4)
+            (self.trick_leader + i) % self.NUM_PLAYERS for i in range(self.NUM_PLAYERS)
         ]
         trick_feat = self._cards_by_player_order(self.current_trick, current_order)
         last_trick_feat = self._cards_by_player_order(self.last_trick, self.last_trick_order)

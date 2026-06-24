@@ -335,8 +335,10 @@
                 const res = await fetch(`/state${advanceAi ? '?advance_ai=1' : ''}`);
                 if (!res.ok) return;
                 const state = await res.json();
-                const validActionByText = new Map(state.valid_actions.map(act => [act.text, act.index]));
                 const isHumanTurn = state.valid_actions.length > 0 && !state.done;
+                const playableActionsByText = isHumanTurn && state.phase !== 'bidding'
+                    ? new Map(state.valid_actions.map(act => [act.text, act.index]))
+                    : new Map();
                 
                 document.getElementById('game-info').classList.remove('hidden');
                 
@@ -409,27 +411,28 @@
                 const fanSpreadBase = Math.max(state.hand.length - 1, 1);
                 state.hand.forEach((card, index) => {
                     const div = document.createElement('div');
+                    const safeCard = escapeHtml(card);
                     // Normalize each card position around center to fan symmetrically from left to right.
                     const spread = state.hand.length > 1 ? (index / fanSpreadBase - FAN_CENTER_OFFSET) : 0;
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
-                    const canPlayCard = state.phase !== 'bidding' && validActionByText.has(card);
+                    const canPlayCard = playableActionsByText.has(card);
                     div.className = `playing-card ${getCardColorClass(card)} hand-card ${canPlayCard ? 'playable-card' : ''}`;
-                    div.dataset.card = escapeHtml(card);
+                    div.dataset.card = safeCard;
                     div.style.setProperty('--fan-rotation', `${rotation}deg`);
                     div.style.setProperty('--fan-offset', `${offset}px`);
                     div.style.zIndex = index + 1;
-                    div.innerHTML = `<span class="card-rank">${escapeHtml(card)}</span>`;
+                    div.innerHTML = `<span class="card-rank">${safeCard}</span>`;
                     if (canPlayCard) {
-                        div.title = `Play ${card}`;
+                        div.title = `Play ${safeCard}`;
                         div.tabIndex = 0;
                         div.setAttribute('role', 'button');
-                        div.setAttribute('aria-label', `Play ${card}`);
-                        div.onclick = () => takeAction(validActionByText.get(card));
+                        div.setAttribute('aria-label', `Play ${safeCard}`);
+                        div.onclick = () => takeAction(playableActionsByText.get(card));
                         div.onkeydown = (event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                takeAction(validActionByText.get(card));
+                                takeAction(playableActionsByText.get(card));
                             }
                         };
                     }

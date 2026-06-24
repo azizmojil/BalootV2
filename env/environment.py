@@ -496,13 +496,13 @@ class BalootMultiAgentEnv(gym.Env):
                     self._set_known_card_owner(idx, agent)
 
         chosen_card = canonical[action]
-        self.hands[agent].remove(chosen_card)
-        idx = canonical.index(chosen_card)
         failed_to_follow = (
             self.trick_suit is not None
             and chosen_card[0] != self.trick_suit
             and not any(card[0] == self.trick_suit for card in self.hands[agent])
         )
+        self.hands[agent].remove(chosen_card)
+        idx = canonical.index(chosen_card)
         if failed_to_follow:
             self._eliminate_void_suit(agent, self.trick_suit)
         self.remaining_cards[idx] = 0.0
@@ -762,9 +762,9 @@ class BalootMultiAgentEnv(gym.Env):
             hidden_types.extend([set_type] * max(0, hidden_counts[set_type]))
         return hidden_types
 
-    def _possible_declared_sets(self, pool_cards, hidden_types):
+    def _possible_declared_sets(self, pool_cards, hidden_types_list):
         pool = set(pool_cards)
-        hidden_types = set(hidden_types)
+        hidden_types = set(hidden_types_list)
         candidates = []
 
         if "Arbamia" in hidden_types:
@@ -840,6 +840,7 @@ class BalootMultiAgentEnv(gym.Env):
 
                 set_support = counts[card_idx] / max_count
                 likelihood = np.ones(4, dtype=np.float32)
+                # A card in more viable hidden-set candidates gets a stronger ownership likelihood.
                 likelihood[player] += self.SET_INFERENCE_STRENGTH * set_support
                 post = prior * likelihood
                 post_sum = post.sum()

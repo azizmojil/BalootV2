@@ -273,6 +273,10 @@
             return String(str || '').replace(/[&<>"'`]/g, char => HTML_ESCAPE_CHARS[char]);
         }
 
+        function normalizeActionText(str) {
+            return String(str || '').trim().toLowerCase();
+        }
+
         function renderPixelCard(str, extraClasses = '') {
             const cardText = str || '';
             const safeCardText = escapeHtml(cardText);
@@ -337,7 +341,7 @@
                 const state = await res.json();
                 const isHumanTurn = state.valid_actions.length > 0 && !state.done;
                 const playableActionsByText = isHumanTurn && state.phase !== 'bidding'
-                    ? new Map(state.valid_actions.map(act => [act.text, act.index]))
+                    ? new Map(state.valid_actions.map(act => [normalizeActionText(act.text), act.index]))
                     : new Map();
                 
                 document.getElementById('game-info').classList.remove('hidden');
@@ -416,7 +420,8 @@
                     const spread = state.hand.length > 1 ? (index / fanSpreadBase - FAN_CENTER_OFFSET) : 0;
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
-                    const canPlayCard = playableActionsByText.has(card);
+                    const actionIndex = playableActionsByText.get(normalizeActionText(card));
+                    const canPlayCard = actionIndex !== undefined;
                     div.className = `playing-card ${getCardColorClass(card)} hand-card ${canPlayCard ? 'playable-card' : ''}`;
                     div.dataset.card = safeCard;
                     div.style.setProperty('--fan-rotation', `${rotation}deg`);
@@ -428,11 +433,13 @@
                         div.tabIndex = 0;
                         div.setAttribute('role', 'button');
                         div.setAttribute('aria-label', `Play ${safeCard}`);
-                        div.onclick = () => takeAction(playableActionsByText.get(card));
+                        div.onclick = () => {
+                            if (actionIndex !== undefined) takeAction(actionIndex);
+                        };
                         div.onkeydown = (event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                takeAction(playableActionsByText.get(card));
+                                if (actionIndex !== undefined) takeAction(actionIndex);
                             }
                         };
                     }

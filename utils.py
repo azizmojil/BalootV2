@@ -20,6 +20,8 @@ def get_global_state(env):
     def player_one_hot(player, include_none=False):
         if include_none:
             return one_hot_index(4 if player is None else player, 5)
+        if player is None:
+            raise ValueError("player cannot be None unless include_none=True")
         return one_hot_index(player, 4)
 
     def action_one_hot(action, include_none=False):

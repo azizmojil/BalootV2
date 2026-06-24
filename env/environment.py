@@ -37,7 +37,9 @@ class BalootMultiAgentEnv(gym.Env):
         self.match_over = False
         self.dealer = self._rng.randint(0, 3)
         self.last_doubler = None
+        # Player order for cards in the active trick; None before a trick is led.
         self.trick_order = None
+        # Player order for cards in last_trick; None until a trick has completed.
         self.last_trick_order = None
         self.action_space = spaces.Discrete(43)
         spaces_dict = {
@@ -213,7 +215,7 @@ class BalootMultiAgentEnv(gym.Env):
     def _bidding_history_features(self, observer):
         features = []
         entries = list(self.bidding_history[-self.BIDDING_HISTORY_LENGTH:])
-        # Older bids remain first and empty future slots stay zero-padded at the end.
+        # Recorded bids occupy the earliest slots; unused trailing slots are zero-padded.
         while len(entries) < self.BIDDING_HISTORY_LENGTH:
             entries.append((None, None))
         for item in entries:
@@ -294,7 +296,7 @@ class BalootMultiAgentEnv(gym.Env):
         # trick_order is set as soon as a trick is led. Before that, no card has
         # been played into current_trick, so the zero encoding is order-agnostic.
         current_order = (self.trick_order if self.trick_order is not None
-                         else self._relative_player_order(ag))
+                         else list(range(self.NUM_PLAYERS)))
         trick_feat = self._cards_by_player_order(self.current_trick, current_order)
         last_trick_feat = self._cards_by_player_order(self.last_trick, self.last_trick_order)
 

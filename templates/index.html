@@ -160,6 +160,9 @@
                 <span class="text-slate-400 text-sm">Team 1 (AI):</span> 
                 <span id="score-t1" class="font-bold text-rose-400 ml-2">0</span>
             </div>
+            <select id="model-select" class="bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 outline-none focus:border-blue-500 transition max-w-[200px]">
+                <option value="">Loading models...</option>
+            </select>
             <button onclick="startGame()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/30">New Game</button>
         </div>
     </header>
@@ -312,10 +315,40 @@
             return `<span class="text-yellow-400">${str}</span>`;
         }
 
+        async function fetchModels() {
+            try {
+                const res = await fetch('/models');
+                const models = await res.json();
+                const select = document.getElementById('model-select');
+                select.innerHTML = '';
+                if (models.length === 0) {
+                    select.innerHTML = '<option value="">No models found</option>';
+                    return;
+                }
+                models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    if (m === "mappo_update_100.h5") opt.selected = true;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error("Failed to load models", e);
+            }
+        }
+        
+        fetchModels();
+
         async function startGame() {
             clearTimeout(pollTimer);
+            const modelSelect = document.getElementById('model-select');
+            const selectedModel = modelSelect.value;
             document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse">Initializing game...</span>';
-            const res = await fetch('/start', { method: 'POST' });
+            const res = await fetch('/start', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: selectedModel })
+            });
             if (res.ok) fetchState();
         }
 

@@ -296,15 +296,15 @@ def allowed_doubling_action(buy_type, buyer, agent, cumulative_scores, current_d
             if agent_team != buyer_team:
                 mask[39] = 1
     elif buy_type != "Sun":
-        if last_doubler is not None:
-            last_doubler_team = team(last_doubler)
-            if agent_team != last_doubler_team:
-                if current_doubling_state == "Double":
-                    mask[40] = 1
-                elif current_doubling_state == "Three":
-                    mask[41] = 1
-                elif current_doubling_state == "Four":
-                    mask[42] = 1
+        if current_doubling_state == "Double":
+            if agent == buyer:
+                mask[40] = 1
+        elif current_doubling_state == "Three":
+            if agent == last_doubler:
+                mask[41] = 1
+        elif current_doubling_state == "Four":
+            if agent == buyer:
+                mask[42] = 1
     return mask
 
 

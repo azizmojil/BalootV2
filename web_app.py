@@ -64,8 +64,19 @@ def run_ai_turn():
 def index():
     return render_template('index.html')
 
+@app.route('/models', methods=['GET'])
+def list_models():
+    models_dir = "models"
+    if not os.path.exists(models_dir):
+        return jsonify([])
+    files = [f for f in os.listdir(models_dir) if f.endswith('.h5') or f.endswith('.keras')]
+    return jsonify(files)
+
 @app.route('/start', methods=['POST'])
 def start_game():
+    data = request.json or {}
+    selected_model = data.get("model", "mappo_update_100.h5")
+
     env = BalootMultiAgentEnv()
     obs_dict = env.reset()
     
@@ -77,7 +88,7 @@ def start_game():
     local_obs_dim, global_state_dim, act_dim = infer_model_dimensions(env, obs_dict)
     agent = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network)
     
-    model_path = os.path.join("models", "mappo_update_100.h5")
+    model_path = os.path.join("models", selected_model)
     if os.path.exists(model_path):
         agent.model.load_weights(model_path)
         add_log(f"Model loaded: {model_path}")

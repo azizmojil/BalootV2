@@ -433,13 +433,11 @@
                         div.tabIndex = 0;
                         div.setAttribute('role', 'button');
                         div.setAttribute('aria-label', `Play ${safeCard}`);
-                        div.onclick = () => {
-                            if (actionIndex !== undefined) takeAction(actionIndex);
-                        };
+                        div.onclick = () => takeAction(actionIndex);
                         div.onkeydown = (event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                if (actionIndex !== undefined) takeAction(actionIndex);
+                                takeAction(actionIndex);
                             }
                         };
                     }

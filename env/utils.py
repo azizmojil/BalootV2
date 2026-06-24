@@ -327,6 +327,9 @@ def trumping_rules(agent_hand, current_trick, trump_suit, agent_index):
     if highest is None:
         return full_card_mask(trump32) if trump32.sum()>0 else full_card_mask(hand32)
 
+    if owner is not None and team(owner) == team(agent_index):
+        return full_card_mask(trump32) if trump32.sum()>0 else full_card_mask(hand32)
+
     beat32 = np.array([1.0 if (c in agent_hand
                                and c[0]==trump_suit
                                and HUKOOM_ORDER[c[1]]>HUKOOM_ORDER[highest[1]])

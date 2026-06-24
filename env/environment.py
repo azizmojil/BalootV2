@@ -500,7 +500,7 @@ class BalootMultiAgentEnv(gym.Env):
         failed_to_follow = (
             self.trick_suit is not None
             and chosen_card[0] != self.trick_suit
-            and not any(card[0] == self.trick_suit for card in self.hands[agent])
+            and not any(card != chosen_card and card[0] == self.trick_suit for card in self.hands[agent])
         )
         self.hands[agent].remove(chosen_card)
         idx = canonical.index(chosen_card)
@@ -751,17 +751,17 @@ class BalootMultiAgentEnv(gym.Env):
             for idx, set_type in enumerate(revealed_names)
         }
         hidden_counts = {
-            "Sera": int(round(declared[0])) - revealed.get("Sera", 0),
-            "Khamseen": int(round(declared[1])) - revealed.get("Khamseen", 0),
+            "Sera": max(0, int(round(declared[0])) - revealed.get("Sera", 0)),
+            "Khamseen": max(0, int(round(declared[1])) - revealed.get("Khamseen", 0)),
             # Declared Mia is a single public bucket; revealed Mia splits into consecutive and same-rank variants.
             # Mia_c is a consecutive run, while Mia_s is four cards of the same rank.
-            "Mia": int(round(declared[2])) - revealed.get("Mia_c", 0) - revealed.get("Mia_s", 0),
-            "Arbamia": int(round(declared[3])) - revealed.get("Arbamia", 0),
+            "Mia": max(0, int(round(declared[2])) - revealed.get("Mia_c", 0) - revealed.get("Mia_s", 0)),
+            "Arbamia": max(0, int(round(declared[3])) - revealed.get("Arbamia", 0)),
         }
 
         hidden_types = []
         for set_type in self.SET_TYPE_BY_INDEX:
-            hidden_types.extend([set_type] * max(0, hidden_counts[set_type]))
+            hidden_types.extend([set_type] * hidden_counts[set_type])
         return hidden_types
 
     def _possible_declared_sets(self, pool_cards, hidden_types_list):
@@ -802,9 +802,10 @@ class BalootMultiAgentEnv(gym.Env):
             self._infer_cards(observer)
 
     def _infer_cards(self, agent):
-        """Apply public set-declaration likelihoods to one observer."""
+        """Apply hidden declared-set likelihoods to one observer."""
         eps = self.INFERENCE_EPSILON
         canonical_deck = create_deck()
+        card_to_idx = {card: idx for idx, card in enumerate(canonical_deck)}
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
                   and np.isclose(self.card_ownership[c, :, agent].sum(), 1.0, rtol=0, atol=eps)
@@ -828,7 +829,7 @@ class BalootMultiAgentEnv(gym.Env):
             counts = np.zeros(32, dtype=np.float32)
             for candidate in candidates:
                 for card in candidate:
-                    counts[canonical_deck.index(card)] += 1.0
+                    counts[card_to_idx[card]] += 1.0
 
             max_count = counts.max()
             if max_count <= 0:
@@ -841,7 +842,7 @@ class BalootMultiAgentEnv(gym.Env):
 
                 set_support = counts[card_idx] / max_count
                 likelihood = np.ones(self.NUM_PLAYERS, dtype=np.float32)
-                # A card in more viable hidden-set candidates gets a stronger ownership likelihood.
+                # Non-declaring owners stay neutral; the declaring owner gets boosted by normalized set support.
                 likelihood[player] += self.SET_INFERENCE_STRENGTH * set_support
                 post = prior * likelihood
                 post_sum = post.sum()

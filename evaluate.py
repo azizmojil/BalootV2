@@ -21,7 +21,6 @@ def main(args):
     global_state_dim = get_global_state(env).shape[0]
     act_dim = env.action_space.n
 
-    # Load Model 1 (Team 0)
     agent0 = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network)
     try:
         agent0.model.load_weights(args.model1)
@@ -30,7 +29,6 @@ def main(args):
         print(f"Error loading {args.model1}: {e}")
         sys.exit(1)
 
-    # Load Model 2 (Team 1)
     if args.model2.lower() == "random":
         agent1 = None
         print("Team 1 loaded model: Random Agent")
@@ -57,11 +55,11 @@ def main(args):
             current_player = env.current_agent
             mask = obs_dict["action_mask"]
             
-            if current_player in [0, 2]: # Team 0
+            if current_player in [0, 2]:
                 local_obs = flatten_obs(obs_dict)
                 global_state = get_global_state(env)
                 action, _, _ = agent0.select_action(local_obs, global_state, mask)
-            else: # Team 1
+            else:
                 if agent1 is None:
                     valid_actions = np.where(mask == 1)[0]
                     action = np.random.choice(valid_actions)

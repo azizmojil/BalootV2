@@ -5,7 +5,6 @@ import numpy as np
 import tensorflow as tf
 import time
 
-# Suppress TF logs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
@@ -17,7 +16,6 @@ from env.utils import translate_action, sort_hand_canonical, create_deck
 
 app = Flask(__name__)
 
-# Global state for a single player instance
 game_state = {
     "env": None,
     "obs_dict": None,
@@ -50,7 +48,6 @@ def run_ai_turns():
         global_state = get_global_state(env)
         mask = obs_dict["action_mask"]
         
-        # Action selection
         action, _, _ = agent.select_action(local_obs, global_state, mask)
         
         obs_dict, _, dones, _ = env.step(action)
@@ -75,7 +72,6 @@ def start_game():
     game_state["done"] = False
     game_state["logs"] = ["Game Started!"]
     
-    # Init agent
     local_obs_dim = flatten_obs(obs_dict).shape[0]
     global_state_dim = get_global_state(env).shape[0]
     act_dim = env.action_space.n
@@ -90,7 +86,6 @@ def start_game():
         
     game_state["agent"] = agent
     
-    # Run initial AI turns
     run_ai_turns()
     
     return jsonify({"status": "started"})
@@ -111,7 +106,7 @@ def get_state():
         "dealer": get_relative_name(env.dealer, human_id),
         "trick_leader": get_relative_name(getattr(env, 'trick_leader', None), human_id),
         "done": game_state["done"],
-        "logs": game_state["logs"][-15:], # Last 15 logs
+        "logs": game_state["logs"][-15:],
     }
     
     if env.phase == 'bidding':
@@ -155,12 +150,10 @@ def get_state():
             })
         state["trick_history"] = trick_history
 
-    # Hand
     hand = env.hands[human_id]
     sorted_hand = sort_hand_canonical(hand)
     state["hand"] = [translate_action(deck.index(c)) for c in sorted_hand]
     
-    # Valid Actions
     valid_actions = []
     if not game_state["done"] and env.current_agent == human_id:
         mask = game_state["obs_dict"]['action_mask']

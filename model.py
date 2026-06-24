@@ -19,7 +19,6 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim):
     def hidden_init():
         return Orthogonal(gain=sqrt(2))
 
-    # --- ACTOR (Policy) Stream - uses ONLY local obs ---
     actor_net = Dense(512, kernel_initializer=hidden_init(), bias_initializer=bias_init)(local_obs_input)
     actor_net = LayerNormalization()(actor_net)
     actor_net = LeakyReLU(alpha=0.01)(actor_net)

@@ -1,30 +1,22 @@
 import numpy as np
 
-# --- Reward Shaping Constants ---
-# These values are hyperparameters and can be tuned.
 
-# 1. Game-Level Rewards (The most important signal)
 REWARD_WIN_GAME = 10.0
 REWARD_LOSE_GAME = -10.0
 
-# 2. Round-Level Rewards (For making/breaking the contract)
 REWARD_CONTRACT_SUCCESS = 2.0
 
-# 3. Trick-Level Rewards (Frequent, smaller signals)
 REWARD_WIN_TRICK_BASE = 0.05
-REWARD_TRICK_POINT_SCALAR = 0.002  # Scales reward with points won
+REWARD_TRICK_POINT_SCALAR = 0.002
 
-# 4. Action-shaping rewards
-REWARD_ALL_PASS_PENALTY = -0.1 # Penalty if a round fails because everyone passed
+REWARD_ALL_PASS_PENALTY = -0.1
 
 
 SUN_CARD_POINTS = {'A': 11, '10': 10, 'K': 4, 'Q': 3, 'J': 2, '9': 0, '8': 0, '7': 0}
 HUKOOM_CARD_POINTS = {'J': 20, '9': 14, 'A': 11, '10': 10, 'K': 4, 'Q': 3, '8': 0, '7': 0}
-# Set bonuses mirror Baloot declarations: runs (Sera/Khamseen/Mia_c) and four-of-a-kind (Mia_s/Arbamia).
 BIDDING_SET_STRENGTH_BONUS = {
     "Sera": 20, "Khamseen": 50, "Mia_c": 100, "Mia_s": 100, "Arbamia": 200
 }
-# Strength is raw 6-card point potential plus set/trump-control bonuses; >50 is a strong buy.
 BIDDING_STRONG_HAND_THRESHOLD = 50
 BIDDING_MONSTER_HAND_THRESHOLD = 80
 BIDDING_WEAK_HAND_THRESHOLD = 35
@@ -49,7 +41,6 @@ def get_card_points(card, game_type, trump_suit):
             points_map = SUN_CARD_POINTS
         return points_map.get(rank, 0)
     except (TypeError, ValueError):
-        # Handles cases where card is None or not a valid tuple
         return 0
 
 
@@ -167,7 +158,6 @@ def calculate_trick_reward(trick_cards, trick_winner, game_type, trump_suit):
         trick_reward = REWARD_WIN_TRICK_BASE + (trick_points * REWARD_TRICK_POINT_SCALAR)
 
         for player_id in range(4):
-            # Check if the player is on the winning team for this trick
             if player_id % 2 == trick_winner % 2:
                 rewards[player_id] = trick_reward
             else:
@@ -175,7 +165,6 @@ def calculate_trick_reward(trick_cards, trick_winner, game_type, trump_suit):
 
         return rewards
     except Exception:
-        # In case of any unexpected error, return a neutral reward to avoid crashing.
         return np.zeros(4)
 
 
@@ -192,7 +181,6 @@ def calculate_end_of_round_reward(env):
 
         buying_team_id = buyer % 2
 
-        # If the buying team scored > 0, they succeeded (since losing results in 0 score for them)
         if env.final_scores[buying_team_id] > 0:
             contract_reward = REWARD_CONTRACT_SUCCESS
         else:
@@ -220,7 +208,6 @@ def calculate_bidding_reward(env, agent_id, action):
     if action == PASS_ACTION and not _has_available_buy_action(env):
         return 0.0
 
-    # PARTNER_SUN_ACTION sends the buy to the partner, so score the hand that receives face_up.
     scoring_agent = _partner_id(agent_id) if action == PARTNER_SUN_ACTION else agent_id
     strengths = _calculate_bidding_strengths(env, scoring_agent)
 
@@ -243,10 +230,8 @@ def calculate_end_of_game_reward(env):
         if not env.match_over:
             return rewards
 
-        # Determine winning team based on cumulative scores
         score_delta = env.cumulative_scores[0] - env.cumulative_scores[1]
         if score_delta == 0:
-            # Tied matches get no terminal win/loss shaping.
             return rewards
         winning_team_id = 0 if score_delta > 0 else 1
 

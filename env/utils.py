@@ -123,19 +123,16 @@ def _record_consecutive_all(suit, seq, sets_found):
         if val == current_seq[-1] + 1:
             current_seq.append(val)
         else:
-            # Process the completed sequence
             if len(current_seq) == 3:
                 sets_found.append(_make_set(suit, current_seq, "Sera"))
             elif len(current_seq) == 4:
                 sets_found.append(_make_set(suit, current_seq, "Khamseen"))
             elif len(current_seq) >= 5:
-                # For runs of 5+, create all possible 5-card windows
                 for i in range(len(current_seq) - 4):
                     window = current_seq[i:i+5]
                     sets_found.append(_make_set(suit, window, "Mia_c"))
             current_seq = [val]
     
-    # Process the final sequence
     if len(current_seq) == 3:
         sets_found.append(_make_set(suit, current_seq, "Sera"))
     elif len(current_seq) == 4:
@@ -150,14 +147,12 @@ def detect_sets(hand):
     """Detects all valid sets in a hand, including overlapping runs."""
     candidate_sets = []
 
-    # Four-of-a-kind sets
     if sum(1 for (s, r) in hand if r == "A") == 4:
         candidate_sets.append({"type": "Arbamia", "cards": [card for card in hand if card[1] == "A"]})
     for rank in ['10', 'J', 'Q', 'K']:
         if sum(1 for (s, r) in hand if r == rank) == 4:
             candidate_sets.append({"type": "Mia_s", "cards": [card for card in hand if card[1] == rank]})
 
-    # Consecutive card sets (runs)
     rank_value = {'7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
     suit_groups = defaultdict(list)
     for card in hand:
@@ -166,7 +161,6 @@ def detect_sets(hand):
         values = sorted({rank_value[c[1]] for c in cards})
         _record_consecutive_all(suit, values, candidate_sets)
 
-    # Deduplicate sets based on priority, ensuring no card is used in more than one declared set
     declared_sets = []
     used_cards = set()
     sorted_candidates = sorted(candidate_sets, key=lambda s: SET_PRIORITY[s["type"]], reverse=True)
@@ -377,14 +371,12 @@ def non_trump_lead_mask(agent_hand, current_trick, trick_suit, trump_suit, agent
                        else 0.0 for c in canonical_deck], dtype=np.float32)
     if beat32.sum()>0:
         return full_card_mask(beat32)
-    # Agent cannot beat the opponent's trump — can play any card
     return full_card_mask(hand32)
 
 
 def get_full_play_mask_hukoom(agent_hand, current_trick, agent, trick_suit, trump_suit, doubling_state=None):
     canonical_deck = create_deck()
     if trick_suit is None:
-        # Agent is the leader
         if doubling_state in ("Double", "Four"):
             non_trump_cards = [card for card in agent_hand if card[0] != trump_suit]
             if non_trump_cards:
@@ -400,10 +392,8 @@ def get_full_play_mask_hukoom(agent_hand, current_trick, agent, trick_suit, trum
                               trump_suit,
                               agent)
 
-    # Check if agent has cards of the lead suit
     has_lead_suit = any(card[0] == trick_suit for card in agent_hand)
     if has_lead_suit:
-        # Must follow suit
         canonical_deck = create_deck()
         follow_mask_32 = np.array([
             1.0 if (card in agent_hand and card[0] == trick_suit) else 0.0
@@ -411,7 +401,6 @@ def get_full_play_mask_hukoom(agent_hand, current_trick, agent, trick_suit, trum
         ], dtype=np.float32)
         return full_card_mask(follow_mask_32)
 
-    # Agent has no cards of the lead suit — must trump if possible
     return non_trump_lead_mask(agent_hand,
                                current_trick,
                                trick_suit,
@@ -449,14 +438,12 @@ def detect_sets_full(hand):
     """
     candidate_sets = []
 
-    # Arbamia
     if sum(1 for (s, r) in hand if r == "A") == 4:
         candidate_sets.append({
             "type": "Arbamia",
             "cards": [card for card in hand if card[1] == "A"]
         })
 
-    # four-of-a-kind on 10,J,Q,K
     for rank in ['10', 'J', 'Q', 'K']:
         if sum(1 for (s, r) in hand if r == rank) == 4:
             candidate_sets.append({
@@ -464,7 +451,6 @@ def detect_sets_full(hand):
                 "cards": [card for card in hand if card[1] == rank]
             })
 
-    # runs in suits, but using our “all” recorder
     rank_value = {'7': 7, '8': 8, '9': 9, '10': 10,
                   'J': 11, 'Q': 12, 'K': 13, 'A': 14}
     suit_groups = defaultdict(list)
@@ -474,7 +460,6 @@ def detect_sets_full(hand):
         values = sorted({rank_value[c[1]] for c in cards})
         _record_consecutive_all(suit, values, candidate_sets)
 
-    # now dedupe by your SET_PRIORITY
     declared_sets = []
     used = set()
     for s in sorted(candidate_sets,

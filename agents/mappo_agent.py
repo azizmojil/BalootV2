@@ -18,7 +18,7 @@ class MAPPOAgent:
         
         self.model = model_builder(local_obs_dim, global_state_dim, act_dim)
         self.optimizer = Adam(learning_rate=lr)
-        self.value_func = self.get_value_for_single_obs # Start with the single-obs version
+        self.value_func = self.get_value_for_single_obs
         self.last_update_stats = {}
 
     def select_action(self, local_obs, global_state, mask):
@@ -33,16 +33,13 @@ class MAPPOAgent:
         logits, value = self.model([local_obs_t, global_state_t], training=False)
         value = tf.squeeze(value, axis=0)
         
-        # Apply mask for action selection
         very_negative = -1e10 * tf.ones_like(logits)
         masked_logits = tf.where(mask_t > 0, logits, very_negative)
         masked_log_probs = tf.nn.log_softmax(masked_logits, axis=1)
 
-        # Sample action from the masked distribution
         action_tensor = tf.random.categorical(masked_log_probs, num_samples=1)
         action = int(tf.squeeze(action_tensor).numpy())
 
-        # The log probability must come from the masked distribution
         log_prob = masked_log_probs[0, action]
 
         return action, log_prob, value
@@ -54,7 +51,6 @@ class MAPPOAgent:
         advantages = []
         last_advantage = 0
         
-        # Append the last value for easier calculation of deltas
         extended_values = values + [last_value]
 
         for t in reversed(range(len(rewards))):
@@ -84,7 +80,6 @@ class MAPPOAgent:
         advantages = np.array(memory["advantages"], dtype=np.float32).flatten()
         returns = np.array(memory["returns"], dtype=np.float32).flatten()
 
-        # Normalize advantages over the entire batch of experience
         advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
 
         dataset = tf.data.Dataset.from_tensor_slices(
@@ -97,7 +92,6 @@ class MAPPOAgent:
                 logits, new_values = self.model([batch_local, batch_global], training=True)
                 new_values = tf.squeeze(new_values, axis=1)
                 
-                # Apply mask before softmax to prevent NaN from 0 * -inf in entropy
                 masked_logits = logits + (batch_masks - 1) * 1e9
                 
                 log_softmax_val = tf.nn.log_softmax(masked_logits, axis=1)
@@ -106,7 +100,6 @@ class MAPPOAgent:
                 batch_actions_onehot = tf.one_hot(batch_actions, self.act_dim)
                 new_log_probs = tf.reduce_sum(batch_actions_onehot * log_softmax_val, axis=1)
                 
-                # Calculate ratio in log-space and clip for stability
                 log_ratio = new_log_probs - tf.stop_gradient(batch_old_log_probs)
                 ratio = tf.exp(log_ratio)
                 clip_fraction = tf.reduce_mean(
@@ -118,8 +111,6 @@ class MAPPOAgent:
                 surr2 = tf.clip_by_value(ratio, 1 - self.clip_range, 1 + self.clip_range) * batch_advantages
                 policy_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
                 
-                # Clipping value loss
-                # Clip the value to reduce variance
                 new_values_clipped = batch_old_values + tf.clip_by_value(
                     new_values - batch_old_values, -self.clip_range, self.clip_range
                 )
@@ -127,8 +118,6 @@ class MAPPOAgent:
                 value_loss_clipped = tf.square(new_values_clipped - batch_returns)
                 value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_unclipped, value_loss_clipped))
 
-                # Entropy of the policy (calculated on the masked distribution)
-                # Add a small epsilon to prevent log(0)
                 entropy_per_step = -tf.reduce_sum(new_probs * tf.math.log(new_probs + 1e-9), axis=1)
                 entropy = tf.reduce_mean(entropy_per_step)
                 

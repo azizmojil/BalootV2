@@ -7,7 +7,6 @@ from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, c
 
 class BalootMultiAgentEnv(gym.Env):
     metadata = {"render_modes": ["human"]}
-    # Ownership-belief inference constants.
     INFERENCE_EPSILON = 1e-3
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
 
@@ -137,7 +136,6 @@ class BalootMultiAgentEnv(gym.Env):
                     continue
                 if self._is_known_to_observer(card_idx, observer):
                     continue
-                # No hidden slots means all remaining cards for this observer are already known.
                 if np.isclose(total_hidden_slots, 0.0, rtol=0, atol=self.INFERENCE_EPSILON):
                     continue
 
@@ -311,8 +309,6 @@ class BalootMultiAgentEnv(gym.Env):
         if self.pass_count == 4 and self.buyer is None:
             self.bidding_round = 2
         if self.pass_count == 8:
-            # This indicates a failed round where everyone passed.
-            # The step function will handle the reset and rewards.
             return
 
         if self.pass_count == 4 and self.buyer is not None:
@@ -404,7 +400,6 @@ class BalootMultiAgentEnv(gym.Env):
             self.team_bant[win_team] += trick_points
             self.team_tricks[win_team] += 1
             
-            # Calculate dense trick rewards
             trick_rewards_arr = calculate_trick_reward(self.last_trick, winner, self.game_type, self.trump_suit)
             self.last_trick_reward = {f"player_{i}": trick_rewards_arr[i] for i in range(4)}
 
@@ -433,18 +428,15 @@ class BalootMultiAgentEnv(gym.Env):
         return winner_idx
 
     def step(self, action):
-        # --- Strict Action Validation ---
         acting_agent = self.current_agent
         obs_dict = self.get_observation()
         if obs_dict["action_mask"][action] == 0:
             raise ValueError(f"Agent {acting_agent} attempted invalid action {action} in phase '{self.phase}'.")
             
         if self.phase == "bidding":
-            # Calculate before _bidding_step mutates the bidder, phase, and hand state.
             bidding_reward = calculate_bidding_reward(self, acting_agent, action)
             self._bidding_step(acting_agent, action)
 
-            # Check for failed round condition
             if self.pass_count >= 8:
                 rewards = {f"player_{i}": REWARD_ALL_PASS_PENALTY for i in range(4)}
                 dones = {f"player_{i}": self.match_over for i in range(4)}
@@ -456,14 +448,12 @@ class BalootMultiAgentEnv(gym.Env):
         else:
             previous_trick_count = self.trick_count
             self._playing_step(acting_agent, action)
-            # A single play can complete at most one trick.
             trick_completed = self.trick_count != previous_trick_count
             if self.trick_count >= 8:
                 rewards = self._compute_score()
                 self._update_cumulative_scores()
                 dones = {f"player_{i}": self.match_over for i in range(4)}
                 
-                # Add shaped end-of-round rewards and the final trick reward
                 end_of_round_rewards_arr = calculate_end_of_round_reward(self)
                 for i in range(4):
                     rewards[f"player_{i}"] += end_of_round_rewards_arr[i]
@@ -505,7 +495,6 @@ class BalootMultiAgentEnv(gym.Env):
             if got:
                 team_balot_bonus[team(p)] += 20
 
-        # Convert set and balot bant to final score points
         divisor = 10 if self.game_type == "Hukoom" else 5
         set_bonus0 = (team_set_bonus[0] + team_balot_bonus[0]) // divisor
         set_bonus1 = (team_set_bonus[1] + team_balot_bonus[1]) // divisor
@@ -529,7 +518,6 @@ class BalootMultiAgentEnv(gym.Env):
             if total[buyer_team] < total[1 - buyer_team]:
                 base = BASE_SCORE_HUKOOM if self.game_type == "Hukoom" else BASE_SCORE_SUN
                 final = [0, 0]
-                # If buyer loses, the opponent gets the base score PLUS all sets played in the round
                 final[1 - buyer_team] = base + set_bonus0 + set_bonus1
             else:
                 final = [total[0], total[1]]
@@ -542,7 +530,6 @@ class BalootMultiAgentEnv(gym.Env):
 
         self.last_round_score = final.copy()
         self.final_scores = final.copy()
-        # Normalize round score-difference rewards by the match target score.
         reward_scale = float(TARGET_SCORE)
         if reward_scale <= 1.0:
             raise ValueError(f"TARGET_SCORE must be greater than 1.0 for reward normalization. Current value: {reward_scale}")

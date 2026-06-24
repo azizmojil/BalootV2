@@ -14,25 +14,21 @@ from agents.mappo_agent import MAPPOAgent
 from model import build_mappo_network
 from utils import flatten_obs, get_global_state
 
-# ─── Configuration ───────────────────────────────────────────────────────────
 config = {
     "num_episodes": 10000,
-    "update_interval": 4096,      # Min steps per player before an update
-    "start_lr": 1e-4,             # Decreased from 3e-4 to prevent value loss explosion
-    "end_lr": 1e-5,
+    "update_interval": 4096,
+    "start_lr": 5e-4,
+    "end_lr": 5e-5,
     "gamma": 0.99,
-    "clip_range": 0.2,
-    "epochs": 4,                  # Decreased from 10 to prevent overfitting to noisy batches
+    "clip_range": 0.25,
+    "epochs": 8,
     "batch_size": 1024,
     "gae_lambda": 0.95,
-    "start_entropy": 0.05,
-    "end_entropy": 0.02,          # Increased from 0.01 to maintain more exploration
-}
+    "start_entropy": 0.10,
+    "end_entropy": 0.05}
 
 NUM_PLAYERS = 4
 
-
-# ─── Helper: per-player memory buffers ────────────────────────────────────────
 def make_empty_buffers():
     """Create an empty per-player memory buffer."""
     return {
@@ -59,7 +55,6 @@ def compute_gae_for_player(agent, player_buf, last_local_obs, last_global_state)
     if len(rewards) == 0:
         return [], []
 
-    # Bootstrap value for the last step
     last_value = agent.get_value_for_single_obs(last_local_obs, last_global_state)
 
     advantages, returns = agent.compute_advantages_and_returns(
@@ -96,7 +91,6 @@ def merge_player_buffers(buffers, all_advantages, all_returns):
     return merged
 
 
-# ─── Annealing schedules ──────────────────────────────────────────────────────
 def get_entropy_coef(ep):
     frac = ep / config["num_episodes"]
     return config["start_entropy"] + frac * (config["end_entropy"] - config["start_entropy"])
@@ -114,7 +108,6 @@ if __name__ == "__main__":
     parser.add_argument("--start_update", type=int, default=0, help="Update count to start from (for logging)")
     args = parser.parse_args()
 
-    # ─── Setup ────────────────────────────────────────────────────────────────────
     env = BalootMultiAgentEnv()
     sample_obs = env.reset()
     local_obs_dim = flatten_obs(sample_obs).shape[0]
@@ -138,13 +131,11 @@ if __name__ == "__main__":
     os.makedirs(model_dir, exist_ok=True)
     summary_writer = tf.summary.create_file_writer(log_dir)
 
-    # ─── Training loop ────────────────────────────────────────────────────────────
     buffers = make_empty_buffers()
     update_count = args.start_update
 
     episode_bar = tqdm(range(args.start_ep, config["num_episodes"]), desc="Training MAPPO", unit="ep")
     for ep in episode_bar:
-        # Anneal hyperparameters
         agent.entropy_coef = get_entropy_coef(ep)
         new_lr = get_learning_rate(ep)
         agent.optimizer.learning_rate.assign(new_lr)
@@ -159,17 +150,13 @@ if __name__ == "__main__":
             global_state = get_global_state(env)
             mask = obs_dict["action_mask"]
 
-            # Select action
             action, logp, value = agent.select_action(local_obs, global_state, mask)
 
-            # Step environment
             next_obs_dict, rewards, dones, infos = env.step(action)
 
-            # Determine if this is a round end or match end
             round_done = any(v for k, v in dones.items() if k != '__all__')
             match_done = dones.get('__all__', False)
 
-            # Store transition for the CURRENT player
             player_buf = buffers[current_player]
             player_buf["local_states"].append(local_obs)
             player_buf["global_states"].append(global_state)
@@ -177,31 +164,26 @@ if __name__ == "__main__":
             player_buf["actions"].append(action)
             player_buf["log_probs"].append(logp.numpy())
             player_buf["values"].append(value.numpy())
-            player_buf["rewards"].append(0.0)  # Will be updated below
-            player_buf["dones"].append(0.0)    # Will be updated below
+            player_buf["rewards"].append(0.0)
+            player_buf["dones"].append(0.0)
 
-            # The environment returns rewards/dones for ALL players (e.g., at the end of a trick/round).
-            # We must apply these to the LAST action each player took.
             for p in range(NUM_PLAYERS):
                 if len(buffers[p]["rewards"]) > 0:
                     buffers[p]["rewards"][-1] += rewards.get(f"player_{p}", 0.0)
                     if match_done:
                         buffers[p]["dones"][-1] = 1.0
 
-            # Accumulate per-episode rewards for logging
             for p in range(NUM_PLAYERS):
                 episode_rewards[p] += rewards.get(f"player_{p}", 0.0)
 
             obs_dict = next_obs_dict
 
-        # ─── Log per-episode metrics ──────────────────────────────────────────
         team0_reward = (episode_rewards[0] + episode_rewards[2]) / 2.0
         team1_reward = (episode_rewards[1] + episode_rewards[3]) / 2.0
         with summary_writer.as_default():
             tf.summary.scalar("Reward/Team0_Episode", team0_reward, step=ep)
             tf.summary.scalar("Reward/Team1_Episode", team1_reward, step=ep)
 
-        # ─── Check if it's time to update ─────────────────────────────────────
         if buffer_len(buffers) >= config["update_interval"]:
             last_global_state = get_global_state(env)
 
@@ -255,7 +237,6 @@ if __name__ == "__main__":
                 f"Avg T0: {avg_t0:.1f} | Avg T1: {avg_t1:.1f}"
             )
 
-            # ─── Save checkpoints periodically ────────────────────────────────
             if update_count % 25 == 0:
                 checkpoint_path = os.path.join(model_dir, f"mappo_update_{update_count}.h5")
                 agent.model.save_weights(checkpoint_path)

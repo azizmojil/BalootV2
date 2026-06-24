@@ -10,7 +10,6 @@ def flatten_obs(obs_dict):
 def get_global_state(env):
     """Aggregates all necessary information into a single numerical global state vector."""
     
-    # Mappings for categorical data
     suit_map = {None: -1, '♠': 0, '♥': 1, '♦': 2, '♣': 3}
     rank_map = {None: -1, '7': 0, '8': 1, '9': 2, '10': 3, 'J': 4, 'Q': 5, 'K': 6, 'A': 7}
     phase_map = {'bidding': 0, 'playing': 1}
@@ -46,7 +45,7 @@ def get_global_state(env):
         return (suit_map[suit] + 1) / 5.0
 
     all_hands = [encode_card(c) for hand in env.hands for c in hand]
-    expected_hand_cards = 32 # 4 players * 8 cards
+    expected_hand_cards = 32
     all_hands.extend([0.0] * (expected_hand_cards - len(all_hands)))
 
     bidding_info = [
@@ -71,7 +70,6 @@ def get_global_state(env):
         encode_card(env.face_up)
     ]
 
-    # Scores
     scores = np.array(env.cumulative_scores, dtype=np.float32) / TARGET_SCORE
 
     return np.concatenate([

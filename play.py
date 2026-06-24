@@ -14,7 +14,6 @@ from model import build_mappo_network
 from utils import flatten_obs, get_global_state
 from env.utils import translate_action, sort_hand_canonical, create_deck
 
-# Enable ANSI escape codes for Windows terminal
 os.system('')
 
 CANONICAL_DECK = create_deck()
@@ -36,10 +35,10 @@ def get_relative_name(player_id, human_id):
 def format_card(action_str):
     """Wraps card strings in brackets and applies colors."""
     if "♥" in action_str or "♦" in action_str:
-        return f"\033[91m[{action_str:>3}]\033[0m" # Red
+        return f"\033[91m[{action_str:>3}]\033[0m"
     elif "♠" in action_str or "♣" in action_str:
-        return f"\033[97m[{action_str:>3}]\033[0m" # White/Normal
-    return f"\033[93m[{action_str}]\033[0m" # Yellow for bids/actions
+        return f"\033[97m[{action_str:>3}]\033[0m"
+    return f"\033[93m[{action_str}]\033[0m"
 
 def print_game_state(env, human_player_id):
     """Prints a beautiful, colored summary of the game state."""
@@ -59,14 +58,13 @@ def print_game_state(env, human_player_id):
             if env.doubling_state:
                 doubler_name = get_relative_name(getattr(env, 'last_doubler', None), human_player_id)
                 print(f" 💥 Doubling:      \033[91m{env.doubling_state.upper()}\033[0m by {doubler_name}")
-    else: # Playing phase
+    else:
         print(f" 🃏 \033[93mPHASE: PLAYING\033[0m")
         trump_str = f" | Trump: \033[91m{env.trump_suit}\033[0m" if env.trump_suit in ("♥", "♦") else (f" | Trump: \033[97m{env.trump_suit}\033[0m" if env.trump_suit else "")
         dbl_str = f" | \033[91m{env.doubling_state.upper()}\033[0m" if env.doubling_state else ""
         print(f" 📜 Contract: \033[93m{env.game_type.upper()}\033[0m by {get_relative_name(env.buyer, human_player_id)}{trump_str}{dbl_str}")
         print(f" 👑 Trick Leader: {get_relative_name(env.trick_leader, human_player_id)}\n")
 
-        # Display active sets (projects)
         if hasattr(env, 'declared_sets_info') and any(env.declared_sets_info):
             sets_str_list = []
             type_map = {"Sera": "Sira", "Khamseen": "50", "Mia_c": "100", "Mia_s": "100", "Arbamia": "400"}
@@ -79,7 +77,6 @@ def print_game_state(env, human_player_id):
                 print(" " * 22 + "--- ACTIVE SETS ---")
                 print("    " + " | ".join(sets_str_list) + "\n")
 
-        # Display balot
         if hasattr(env, 'balot') and any(env.balot):
             balot_str_list = []
             for p_idx, has_balot in enumerate(env.balot):
@@ -90,7 +87,6 @@ def print_game_state(env, human_player_id):
                 print(" " * 23 + "--- BALOOT ---")
                 print("    " + " & ".join(balot_str_list) + " declared Baloot!\n")
         
-        # Display the trick history if available
         if getattr(env, 'trick_history', []):
             print(" " * 20 + "--- PAST TRICKS ---")
             for i, trick_data in enumerate(env.trick_history):
@@ -107,7 +103,6 @@ def print_game_state(env, human_player_id):
                 print(f" Trick {i+1}: " + " | ".join(last_trick_str) + f"  👉 \033[93mWinner: {winner_name}\033[0m")
             print("")
 
-        # Display the table (Trick)
         print(" " * 22 + "--- THE TABLE ---")
         trick_str = []
         for p_idx, card in enumerate(env.current_trick):
@@ -118,7 +113,6 @@ def print_game_state(env, human_player_id):
                 trick_str.append(f"{p_name}: \033[90m[___]\033[0m")
         print("  " + " | ".join(trick_str) + "\n")
 
-    # Print player's hand
     print(f"\033[96m{'-'*65}\033[0m")
     print(f" 🖐️ YOUR HAND:")
     hand = env.hands[human_player_id]
@@ -143,7 +137,7 @@ def get_human_action(env, obs_dict):
     while True:
         try:
             choice = int(input("\n 🎯 Choose an action by number: \033[92m"))
-            print("\033[0m", end="") # Reset color immediately after input
+            print("\033[0m", end="")
             if choice in action_map:
                 return action_map[choice]
             else:
@@ -161,7 +155,6 @@ def main(args):
         print(f"Error: Model file not found at {args.model_path}")
         sys.exit(1)
 
-    # --- Initialization ---
     env = BalootMultiAgentEnv()
     obs_dict = env.reset()
 
@@ -180,7 +173,6 @@ def main(args):
     human_player_id = args.player
     print(f"You are Player {human_player_id}. Your teammate is Player {(human_player_id + 2) % 4}.")
 
-    # --- Game Loop ---
     done = False
     while not done:
         current_player = env.current_agent
@@ -189,20 +181,17 @@ def main(args):
             print_game_state(env, human_player_id)
             action = get_human_action(env, obs_dict)
         else:
-            # AI's turn
             local_obs = flatten_obs(obs_dict)
             global_state = get_global_state(env)
             mask = obs_dict["action_mask"]
             action, _, _ = agent.select_action(local_obs, global_state, mask)
             ai_name = get_relative_name(current_player, human_player_id)
             print(f"\n--- {ai_name} (AI) plays: {translate_action(action)} ---", flush=True)
-            time.sleep(0.5) # Add a small delay to make AI moves readable
+            time.sleep(0.5)
 
         obs_dict, _, dones, _ = env.step(action)
-        # The game is only truly over when the environment says so with '__all__'
         done = dones.get('__all__', False)
 
-    # --- End of Game ---
     print("\n" + "="*50)
     print("GAME OVER")
     final_score_t0 = env.cumulative_scores[0]

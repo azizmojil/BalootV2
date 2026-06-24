@@ -11,7 +11,9 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim):
     The Actor (policy) uses ONLY the local observation.
     The Critic (value) uses BOTH the local observation and global state.
     """
-    act_dim = int(act_dim)
+    local_obs_dim = _positive_int(local_obs_dim, "local_obs_dim")
+    global_state_dim = _positive_int(global_state_dim, "global_state_dim")
+    act_dim = _positive_int(act_dim, "act_dim")
     local_obs_input = Input(shape=(local_obs_dim,), name='local_obs_input')
     global_state_input = Input(shape=(global_state_dim,), name='global_state_input')
     bias_init = Zeros()
@@ -55,3 +57,13 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim):
     )
 
     return model
+
+
+def _positive_int(value, name):
+    try:
+        value = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a positive integer, got {value!r}") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer, got {value}")
+    return value

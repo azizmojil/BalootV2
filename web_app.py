@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 from env.environment import BalootMultiAgentEnv
 from agents.mappo_agent import MAPPOAgent
 from model import build_mappo_network
-from utils import flatten_obs, get_global_state
+from utils import flatten_obs, get_global_state, infer_model_dimensions
 from env.utils import translate_action, sort_hand_canonical, create_deck
 
 app = Flask(__name__)
@@ -44,7 +44,7 @@ def run_ai_turns():
     
     while not game_state["done"] and env.current_agent != human_id:
         current_player = env.current_agent
-        local_obs = flatten_obs(obs_dict)
+        local_obs = flatten_obs(obs_dict, env.observation_space)
         global_state = get_global_state(env)
         mask = obs_dict["action_mask"]
         
@@ -72,9 +72,7 @@ def start_game():
     game_state["done"] = False
     game_state["logs"] = ["Game Started!"]
     
-    local_obs_dim = flatten_obs(obs_dict).shape[0]
-    global_state_dim = get_global_state(env).shape[0]
-    act_dim = env.action_space.n
+    local_obs_dim, global_state_dim, act_dim = infer_model_dimensions(env, obs_dict)
     agent = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network)
     
     model_path = os.path.join("models", "mappo_update_100.h5")

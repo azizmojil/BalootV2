@@ -12,7 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from env.environment import BalootMultiAgentEnv
 from agents.mappo_agent import MAPPOAgent
 from model import build_mappo_network
-from utils import flatten_obs, get_global_state
+from utils import flatten_obs, get_global_state, infer_model_dimensions
 
 config = {
     "num_episodes": 10000,
@@ -110,9 +110,7 @@ if __name__ == "__main__":
 
     env = BalootMultiAgentEnv()
     sample_obs = env.reset()
-    local_obs_dim = flatten_obs(sample_obs).shape[0]
-    global_state_dim = get_global_state(env).shape[0]
-    act_dim = env.action_space.n
+    local_obs_dim, global_state_dim, act_dim = infer_model_dimensions(env, sample_obs)
 
     agent = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network,
                        lr=config["start_lr"], gamma=config["gamma"],
@@ -146,7 +144,7 @@ if __name__ == "__main__":
 
         while not match_done:
             current_player = env.current_agent
-            local_obs = flatten_obs(obs_dict)
+            local_obs = flatten_obs(obs_dict, env.observation_space)
             global_state = get_global_state(env)
             mask = obs_dict["action_mask"]
 
@@ -193,7 +191,7 @@ if __name__ == "__main__":
             for p in range(NUM_PLAYERS):
                 env.current_agent = p
                 p_obs_dict = env.get_observation()
-                p_last_local_obs = flatten_obs(p_obs_dict)
+                p_last_local_obs = flatten_obs(p_obs_dict, env.observation_space)
                 
                 adv, ret = compute_gae_for_player(
                     agent, buffers[p], p_last_local_obs, last_global_state

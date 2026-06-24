@@ -1,12 +1,51 @@
 import numpy as np
+from gymnasium import spaces
 from env.constants import BID_ACTIONS, RANKS, SUITS, TARGET_SCORE
 from env.utils import one_hot_index
 
-def flatten_obs(obs_dict):
+def _observation_keys(obs_dict, observation_space=None, exclude=("action_mask",)):
+    if observation_space is not None:
+        if not isinstance(observation_space, spaces.Dict):
+            raise TypeError(f"observation_space must be a gymnasium.spaces.Dict, got {type(observation_space).__name__}")
+        keys = observation_space.spaces.keys()
+    else:
+        keys = obs_dict.keys()
+    return [key for key in keys if key not in exclude]
+
+
+def flatten_obs(obs_dict, observation_space=None, exclude=("action_mask",)):
     """Flattens the observation dictionary into a single numpy array."""
-    return np.concatenate([v.ravel()
-                           for k, v in obs_dict.items()
-                           if k != 'action_mask'])
+    flat_parts = []
+    for key in _observation_keys(obs_dict, observation_space, exclude):
+        if key not in obs_dict:
+            raise KeyError(f"Observation is missing required key '{key}'")
+        arr = np.asarray(obs_dict[key], dtype=np.float32)
+        if observation_space is not None and arr.shape != observation_space.spaces[key].shape:
+            raise ValueError(
+                f"Observation '{key}' has shape {arr.shape}, "
+                f"expected {observation_space.spaces[key].shape}"
+            )
+        if not np.all(np.isfinite(arr)):
+            raise ValueError(f"Observation '{key}' contains non-finite values")
+        flat_parts.append(arr.ravel())
+    if not flat_parts:
+        raise ValueError("Cannot flatten an observation with no features")
+    return np.concatenate(flat_parts).astype(np.float32)
+
+
+def infer_model_dimensions(env, obs_dict=None):
+    """Derives MAPPO input and action dimensions from the current environment."""
+    if obs_dict is None:
+        obs_dict = env.reset()
+    local_obs_dim = flatten_obs(obs_dict, env.observation_space).shape[0]
+    global_state_dim = get_global_state(env).shape[0]
+    act_dim = int(env.action_space.n)
+    if local_obs_dim <= 0 or global_state_dim <= 0 or act_dim <= 0:
+        raise ValueError(
+            f"Invalid model dimensions: local_obs_dim={local_obs_dim}, "
+            f"global_state_dim={global_state_dim}, act_dim={act_dim}"
+        )
+    return local_obs_dim, global_state_dim, act_dim
 
 def get_global_state(env):
     """Aggregates critic-only game information into a fixed binary/normalized vector."""

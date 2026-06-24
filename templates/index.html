@@ -233,6 +233,7 @@
 
     <script>
         let pollTimer = null;
+        // Maximum hand-card rotation, vertical lift, and center point for the fan layout.
         const FAN_ROTATION_DEGREES = 38;
         const FAN_VERTICAL_OFFSET = 28;
         const FAN_CENTER_OFFSET = 0.5;
@@ -249,6 +250,7 @@
             if (!str) return 'pixel-gold';
             if (str.includes('♥') || str.includes('♦')) return 'pixel-red';
             if (str.includes('♠') || str.includes('♣')) return 'pixel-black';
+            // Use gold for non-standard cards such as bid/action labels that do not include suits.
             return 'pixel-gold';
         }
 
@@ -389,6 +391,7 @@
                 const fanSpreadBase = Math.max(state.hand.length - 1, 1);
                 state.hand.forEach((card, index) => {
                     const div = document.createElement('div');
+                    // Normalize each card position around center to fan symmetrically from left to right.
                     const spread = state.hand.length > 1 ? (index / fanSpreadBase - FAN_CENTER_OFFSET) : 0;
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;

@@ -13,6 +13,7 @@ class BalootMultiAgentEnv(gym.Env):
     BIDDING_HISTORY_LENGTH = NUM_PLAYERS
     BIDDING_HISTORY_FEATURES = BIDDING_HISTORY_LENGTH * (NUM_PLAYERS + len(BID_ACTIONS))
     INFERENCE_EPSILON = 1e-3
+    SET_INFERENCE_STRENGTH = 2.0
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
     OBSERVATION_SCHEMA = {
         # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
@@ -135,6 +136,24 @@ class BalootMultiAgentEnv(gym.Env):
             observers = range(4)
         for observer in observers:
             self.card_ownership[card_idx, :, observer] = 0.0
+
+    def _eliminate_card_owner(self, card_idx, owner, observers=None):
+        if not 0 <= card_idx < 32:
+            raise ValueError(f"card_idx must be in [0, 32), got {card_idx}")
+        if not 0 <= owner < 4:
+            raise ValueError(f"owner must be in [0, 4), got {owner}")
+        if observers is None:
+            observers = range(4)
+        for observer in observers:
+            if np.isclose(self.card_ownership[card_idx, owner, observer], 1.0):
+                continue
+            self.card_ownership[card_idx, owner, observer] = 0.0
+
+    def _eliminate_void_suit(self, player, suit):
+        canonical_deck = create_deck()
+        for card_idx, card in enumerate(canonical_deck):
+            if card[0] == suit and self.remaining_cards[card_idx] == 1:
+                self._eliminate_card_owner(card_idx, player)
 
     def _is_known_to_observer(self, card_idx, observer):
         return np.any(np.isclose(self.card_ownership[card_idx, :, observer], 1.0))
@@ -479,10 +498,12 @@ class BalootMultiAgentEnv(gym.Env):
         chosen_card = canonical[action]
         self.hands[agent].remove(chosen_card)
         idx = canonical.index(chosen_card)
+        if self.trick_suit is not None and chosen_card[0] != self.trick_suit:
+            self._eliminate_void_suit(agent, self.trick_suit)
         self.remaining_cards[idx] = 0.0
         self._set_known_card_owner(idx, agent)
         self._refresh_card_ownership_beliefs()
-        self._infer_cards(agent)
+        self._infer_cards()
 
         if self.game_type == "Hukoom" and self.trump_suit:
             suit, rank = chosen_card
@@ -716,55 +737,104 @@ class BalootMultiAgentEnv(gym.Env):
 
             self.declared_sets_info = revealed
 
-    def _infer_cards(self, agent):
-        eps = self.INFERENCE_EPSILON
+    def _hidden_declared_set_types(self, player):
+        declared = self.declared_sets[player]
+        revealed_names = list(SET_PRIORITY.keys())
+        revealed = {
+            set_type: int(round(self.revealed_sets[player, idx]))
+            for idx, set_type in enumerate(revealed_names)
+        }
+        hidden_counts = {
+            "Sera": int(round(declared[0])) - revealed.get("Sera", 0),
+            "Khamseen": int(round(declared[1])) - revealed.get("Khamseen", 0),
+            "Mia": int(round(declared[2])) - revealed.get("Mia_c", 0) - revealed.get("Mia_s", 0),
+            "Arbamia": int(round(declared[3])) - revealed.get("Arbamia", 0),
+        }
 
+        hidden_types = []
+        for set_type in self.SET_TYPE_BY_INDEX:
+            hidden_types.extend([set_type] * max(0, hidden_counts[set_type]))
+        return hidden_types
+
+    def _possible_declared_sets(self, pool_cards, hidden_types):
+        pool = set(pool_cards)
+        hidden_types = set(hidden_types)
+        candidates = []
+
+        if "Arbamia" in hidden_types:
+            aces = [(suit, "A") for suit in SUITS]
+            if all(card in pool for card in aces):
+                candidates.append(aces)
+
+        if "Mia" in hidden_types:
+            for rank in ("10", "J", "Q", "K"):
+                same_rank = [(suit, rank) for suit in SUITS]
+                if all(card in pool for card in same_rank):
+                    candidates.append(same_rank)
+
+        run_lengths = []
+        if "Sera" in hidden_types:
+            run_lengths.append(3)
+        if "Khamseen" in hidden_types:
+            run_lengths.append(4)
+        if "Mia" in hidden_types:
+            run_lengths.append(5)
+
+        for suit in SUITS:
+            for length in run_lengths:
+                for start in range(len(RANKS) - length + 1):
+                    run = [(suit, rank) for rank in RANKS[start:start + length]]
+                    if all(card in pool for card in run):
+                        candidates.append(run)
+
+        return candidates
+
+    def _infer_cards(self, observer=None):
+        if observer is None:
+            for player_observer in range(4):
+                self._infer_cards(player_observer)
+            return
+
+        eps = self.INFERENCE_EPSILON
+        canonical_deck = create_deck()
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
-                  and np.isclose(self.card_ownership[c, :, agent].sum(), 1.0, rtol=0, atol=eps)
-                  and not np.any(np.isclose(self.card_ownership[c, :, agent], 1.0))]
+                  and np.isclose(self.card_ownership[c, :, observer].sum(), 1.0, rtol=0, atol=eps)
+                  and not np.any(np.isclose(self.card_ownership[c, :, observer], 1.0))]
 
         for player in range(4):
-            to_find = int(self.declared_sets[player].sum()
-                          - self.revealed_sets[player].sum())
-            if to_find <= 0:
+            hidden_types = self._hidden_declared_set_types(player)
+            if not hidden_types:
                 continue
 
             known = [c for c in range(32)
-                     if np.isclose(self.card_ownership[c, player, agent], 1.0)]
+                     if self.remaining_cards[c] == 1
+                     and np.isclose(self.card_ownership[c, player, observer], 1.0)]
 
-            pool_idxs = known + hidden
-            pool_cards = [create_deck()[c] for c in pool_idxs]
-            all_sets = detect_sets_full(pool_cards)
+            pool_idxs = sorted(set(known + hidden))
+            pool_cards = [canonical_deck[c] for c in pool_idxs]
+            candidates = self._possible_declared_sets(pool_cards, hidden_types)
+            if not candidates:
+                continue
 
-            declared_types = []
-            for idx, count in enumerate(self.declared_sets[player]):
-                declared_types += [self.SET_TYPE_BY_INDEX[idx]] * int(count)
+            counts = np.zeros(32, dtype=np.float32)
+            for candidate in candidates:
+                for card in candidate:
+                    counts[canonical_deck.index(card)] += 1.0
 
-            candidates = []
-            for s in all_sets:
-                t = s["type"]
-                ok = (t in declared_types) or ("Mia" in declared_types
-                                               and t in ("Mia_s", "Mia_c"))
-                if not ok:
+            max_count = counts.max()
+            if max_count <= 0:
+                continue
+
+            for card_idx in hidden:
+                prior = self.card_ownership[card_idx, :, observer]
+                if prior[player] <= eps:
                     continue
 
-                idxs = [pool_idxs[pool_cards.index(card)]
-                        for card in s["cards"]]
-                candidates.append(idxs)
-
-            counts = np.zeros((32, 4), dtype=float)
-            for cands in candidates:
-                for c in cands:
-                    counts[c, player] += 1
-
-            for c in hidden:
-                if np.any(np.isclose(self.card_ownership[c, :, agent], 1.0)):
-                    continue
-
-                prior = self.card_ownership[c, :, agent]
-                likelihood = counts[c] + eps
+                set_support = counts[card_idx] / max_count
+                likelihood = np.ones(4, dtype=np.float32)
+                likelihood[player] += self.SET_INFERENCE_STRENGTH * set_support
                 post = prior * likelihood
                 post_sum = post.sum()
                 if post_sum > 0:
-                    self.card_ownership[c, :, agent] = post / post_sum
+                    self.card_ownership[card_idx, :, observer] = post / post_sum

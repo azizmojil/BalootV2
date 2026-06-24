@@ -6,9 +6,32 @@ from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, c
 
 
 class BalootMultiAgentEnv(gym.Env):
+    """Baloot environment with explicit per-round bidding and trick state."""
+
     metadata = {"render_modes": ["human"]}
+    NUM_PLAYERS = 4
+    BIDDING_HISTORY_LENGTH = NUM_PLAYERS
+    BIDDING_HISTORY_FEATURES = BIDDING_HISTORY_LENGTH * (NUM_PLAYERS + len(BID_ACTIONS))
     INFERENCE_EPSILON = 1e-3
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
+    OBSERVATION_SCHEMA = {
+        # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
+        "player_roles": (22,),
+        # Phase, game type, trump, doubling, initial bid, and final bid one-hots.
+        "game_context": (39,),
+        "score_context": (10,),
+        "faceup_card": (32,),
+        "own_hand": (32,),
+        "played_cards": (32,),
+        "unknown_cards": (32,),
+        "cards_ownership": (128,),
+        "trick": (128,),
+        "last_trick": (128,),
+        "declared_sets": (16,),
+        "revealed_sets": (20,),
+        "bidding_history": (BIDDING_HISTORY_FEATURES,),
+        "action_mask": (43,),
+    }
 
     def __init__(self):
         super().__init__()
@@ -17,13 +40,17 @@ class BalootMultiAgentEnv(gym.Env):
         self.round_count = 0
         self.match_over = False
         self.dealer = self._rng.randint(0, 3)
+        # Last player who raised the doubling state; None when the contract is not doubled.
+        self.last_doubler = None
+        # Player order for cards in the active trick; None before a trick is led.
+        self.trick_order = None
+        # Player order for cards in last_trick; None until a trick has completed.
+        self.last_trick_order = None
         self.action_space = spaces.Discrete(43)
-        sample = self.reset()
-        spaces_dict = {}
-        for name, arr in sample.items():
-            spaces_dict[name] = spaces.Box(0.0, 1.0,
-                                           shape=arr.shape,
-                                           dtype=np.float32)
+        spaces_dict = {
+            name: spaces.Box(0.0, 1.0, shape=shape, dtype=np.float32)
+            for name, shape in self.OBSERVATION_SCHEMA.items()
+        }
         self.observation_space = spaces.Dict(spaces_dict)
 
     def reset(self, seed=None, options=None):
@@ -34,6 +61,9 @@ class BalootMultiAgentEnv(gym.Env):
         self.round_count = 0
         self.match_over = False
         self.dealer = self._rng.randint(0, 3)
+        self.last_doubler = None
+        self.trick_order = None
+        self.last_trick_order = None
         return self._reset_round()
 
     def _reset_round(self):
@@ -62,14 +92,18 @@ class BalootMultiAgentEnv(gym.Env):
                 idx = canonical_deck.index(card)
                 self._set_known_card_owner(idx, p, observers=[p])
         self.face_up = self.deck.pop(0)
-        self.trick_order = None
+        # Active trick play order; set after the leader plays the first card.
+        self.trick_order = self._default_player_order()
         self.trick_suit = None
         self.trick_count = 0
         self.trick_leader = (self.dealer + 1) % 4
         self.current_agent = self.trick_leader
         self.current_trick = [None] * 4
         self.last_trick = [None] * 4
+        # Completed trick play order for last_trick; None until a trick completes.
+        self.last_trick_order = None
         self.trick_history = []
+        self.bidding_history = []
         self.declared_sets = np.zeros((4, 4), dtype=np.float32)
         self.revealed_sets = np.zeros((4, 5), dtype=np.float32)
         self.declared_sets_info = None
@@ -146,78 +180,161 @@ class BalootMultiAgentEnv(gym.Env):
                     prior_sum = total_hidden_slots
                 self.card_ownership[card_idx, :, observer] = prior / prior_sum
 
+    def _relative_player_index(self, player, observer):
+        if player is None:
+            return None
+        return (player - observer) % 4
+
+    def _relative_player_one_hot(self, player, observer, include_none=False):
+        rel = self._relative_player_index(player, observer)
+        if include_none:
+            return one_hot_index(self.NUM_PLAYERS if rel is None else rel, self.NUM_PLAYERS + 1)
+        return one_hot_index(rel, self.NUM_PLAYERS)
+
+    def _default_player_order(self):
+        return list(range(self.NUM_PLAYERS))
+
+    def _relative_player_order(self, observer):
+        return [(observer + offset) % self.NUM_PLAYERS for offset in range(self.NUM_PLAYERS)]
+
+    def _relative_rows(self, values, observer):
+        rows = self._relative_player_order(observer)
+        return values[rows]
+
+    def _bid_action_one_hot(self, action, include_none=False):
+        size = len(BID_ACTIONS) + (1 if include_none else 0)
+        vec = np.zeros(size, dtype=np.float32)
+        if action in BID_ACTIONS:
+            vec[BID_ACTIONS.index(action)] = 1.0
+        elif include_none:
+            vec[-1] = 1.0
+        return vec
+
+    def _hand_mask(self, hand):
+        canonical_deck = create_deck()
+        return np.array([1.0 if card in hand else 0.0 for card in canonical_deck],
+                        dtype=np.float32)
+
+    def _cards_by_player_order(self, cards_by_player, order):
+        if order is None:
+            return np.zeros(128, dtype=np.float32)
+        return np.concatenate([
+            one_hot_card(cards_by_player[player])
+            if cards_by_player[player] is not None
+            else np.zeros(32, dtype=np.float32)
+            for player in order
+        ]).astype(np.float32)
+
+    def _bidding_history_features(self, observer):
+        features = []
+        entries = list(self.bidding_history[-self.BIDDING_HISTORY_LENGTH:])
+        # Recent recorded bids keep chronological order; unused trailing slots are zero-padded.
+        while len(entries) < self.BIDDING_HISTORY_LENGTH:
+            entries.append((None, None))
+        for item in entries:
+            actor, action = item
+            if actor is None:
+                actor_feat = np.zeros(self.NUM_PLAYERS, dtype=np.float32)
+            else:
+                actor_feat = self._relative_player_one_hot(actor, observer)
+            features.append(actor_feat)
+            features.append(self._bid_action_one_hot(action))
+        return np.concatenate(features).astype(np.float32)
+
+    def _validate_observation(self, obs):
+        expected_keys = tuple(self.OBSERVATION_SCHEMA.keys())
+        actual_keys = tuple(obs.keys())
+        if actual_keys != expected_keys:
+            raise ValueError(f"Observation keys do not match schema; expected {expected_keys}, got {actual_keys}")
+        for key, shape in self.OBSERVATION_SCHEMA.items():
+            arr = obs[key]
+            if arr.shape != shape:
+                raise ValueError(f"Observation '{key}' has shape {arr.shape}, expected {shape}")
+            if arr.dtype != np.float32:
+                raise ValueError(f"Observation '{key}' has dtype {arr.dtype}, expected float32")
+            if not np.all(np.isfinite(arr)):
+                raise ValueError(f"Observation '{key}' contains non-finite values")
+            if np.any(arr < -self.INFERENCE_EPSILON) or np.any(arr > 1.0 + self.INFERENCE_EPSILON):
+                raise ValueError(
+                    f"Observation '{key}' contains values outside [0, 1]: "
+                    f"min={arr.min()}, max={arr.max()}"
+                )
+
     def get_observation(self):
+        if not hasattr(self, "hands"):
+            raise RuntimeError("Call reset() before requesting an observation.")
         ag = self.current_agent
 
-        who_am_i = np.eye(4, dtype=np.float32)[ag]
-        dealer = np.eye(4, dtype=np.float32)[self.dealer]
-        partner = np.eye(4, dtype=np.float32)[(ag + 2) % 4]
-        trick_leader = np.eye(4, dtype=np.float32)[self.trick_leader]
-
-        buyer = np.zeros(5, dtype=np.float32)
-        buyer[4 if self.buyer is None else self.buyer] = 1.0
-
-        remaining_tricks = np.array([len(self.hands[ag]) / 8.0], dtype=np.float32)
-        bidding_progress = np.array([
-            min(self.bidding_round, 2) / 2.0,
-            min(self.pass_count, 8) / 8.0
-        ], dtype=np.float32)
-        score_context = np.clip(np.array(self.cumulative_scores, dtype=np.float32) / TARGET_SCORE, 0.0, 1.0)
-
-        faceup_feat = one_hot_card(self.face_up)
+        player_roles = np.concatenate([
+            self._relative_player_one_hot(self.dealer, ag),
+            self._relative_player_one_hot((ag + 2) % 4, ag),
+            self._relative_player_one_hot(self.buyer, ag, include_none=True),
+            self._relative_player_one_hot(self.trick_leader, ag),
+            self._relative_player_one_hot(self.last_doubler, ag, include_none=True),
+        ]).astype(np.float32)
 
         phase_map = {'bidding': 0, 'playing': 1}
-        phase = np.eye(2, dtype=np.float32)[phase_map[self.phase]].flatten()
-
         gt_map = {None: 0, 'Sun': 1, 'Hukoom': 2}
-        game_type = np.eye(3, dtype=np.float32)[gt_map[self.game_type]].flatten()
-
         trump_map = {None: 0, '♠': 1, '♥': 2, '♦': 3, '♣': 4}
-        trump_suit = np.eye(5, dtype=np.float32)[trump_map[self.trump_suit]].flatten()
-
         ds_map = {None: 0, 'Double': 1, 'Three': 2, 'Four': 3, 'Gahwa': 4}
-        doubling = np.eye(5, dtype=np.float32)[ds_map[self.doubling_state]].flatten()
+        game_context = np.concatenate([
+            one_hot_index(phase_map[self.phase], 2),
+            one_hot_index(gt_map[self.game_type], 3),
+            one_hot_index(trump_map[self.trump_suit], 5),
+            one_hot_index(ds_map[self.doubling_state], 5),
+            self._bid_action_one_hot(self.initial_bid, include_none=True),
+            self._bid_action_one_hot(self.final_bid, include_none=True),
+        ]).astype(np.float32)
 
-        own_knowledge = self.card_ownership[:, :, ag].astype(np.float32)
+        own_team = team(ag)
+        opp_team = 1 - own_team
+        score_context = np.array([
+            min(self.bidding_round, 2) / 2.0,
+            min(self.pass_count, 8) / 8.0,
+            len(self.hands[ag]) / 8.0,
+            min(self.trick_count, 8) / 8.0,
+            np.clip(self.cumulative_scores[own_team] / TARGET_SCORE, 0.0, 1.0),
+            np.clip(self.cumulative_scores[opp_team] / TARGET_SCORE, 0.0, 1.0),
+            np.clip((self.cumulative_scores[own_team] - self.cumulative_scores[opp_team] + TARGET_SCORE) / (2 * TARGET_SCORE), 0.0, 1.0),
+            min(self.team_bant[own_team], 162) / 162.0,
+            min(self.team_bant[opp_team], 162) / 162.0,
+            min(self.team_tricks[own_team], 8) / 8.0,
+        ], dtype=np.float32)
+
+        own_hand = self._hand_mask(self.hands[ag])
+        played_cards = (1.0 - self.remaining_cards).astype(np.float32)
+        unknown_cards = np.clip(self.remaining_cards - own_hand, 0.0, 1.0).astype(np.float32)
+
+        relative_owner_order = self._relative_player_order(ag)
+        own_knowledge = self.card_ownership[:, relative_owner_order, ag].astype(np.float32)
         own_knowledge_flat = own_knowledge.flatten()
 
-        trick_feat = np.concatenate([one_hot_card(c)
-                                     if c is not None
-                                     else np.zeros(32, dtype=np.float32)
-                                     for c in self.current_trick])
-        last_trick_feat = np.concatenate([one_hot_card(c)
-                                          if c is not None
-                                          else np.zeros(32, dtype=np.float32)
-                                          for c in self.last_trick])
-        played_cards = (1.0 - self.remaining_cards).astype(np.float32)
+        current_order = self.trick_order
+        trick_feat = self._cards_by_player_order(self.current_trick, current_order)
+        last_trick_feat = self._cards_by_player_order(self.last_trick, self.last_trick_order)
 
-        declared = (self.declared_sets / 2).astype(np.float32).flatten()
-        revealed = (self.revealed_sets / 2).astype(np.float32).flatten()
+        declared = (self._relative_rows(self.declared_sets, ag) / 2).astype(np.float32).flatten()
+        revealed = (self._relative_rows(self.revealed_sets, ag) / 2).astype(np.float32).flatten()
 
         mask = (self._bidding_action() if self.phase == 'bidding'
                 else self._playing_action()).astype(np.float32)
 
-        return {'identity': who_am_i,
-                'dealer': dealer,
-                'partner': partner,
-                'buyer': buyer,
-                'trick_leader': trick_leader,
-                'countdown': remaining_tricks,
-                'bidding_progress': bidding_progress,
-                'score_context': score_context,
-                'faceup_card': faceup_feat,
-                'phase': phase,
-                'game_type': game_type,
-                'trump_suit': trump_suit,
-                'doubling': doubling,
-                'remaining_cards': self.remaining_cards,
-                'played_cards': played_cards,
-                'cards_ownership': own_knowledge_flat,
-                'trick': trick_feat,
-                'last_trick': last_trick_feat,
-                'declared_sets': declared,
-                'revealed_sets': revealed,
-                'action_mask': mask}
+        obs = {'player_roles': player_roles,
+               'game_context': game_context,
+               'score_context': score_context,
+               'faceup_card': one_hot_card(self.face_up),
+               'own_hand': own_hand,
+               'played_cards': played_cards,
+               'unknown_cards': unknown_cards,
+               'cards_ownership': own_knowledge_flat,
+               'trick': trick_feat,
+               'last_trick': last_trick_feat,
+               'declared_sets': declared,
+               'revealed_sets': revealed,
+               'bidding_history': self._bidding_history_features(ag),
+               'action_mask': mask}
+        self._validate_observation(obs)
+        return obs
 
     def _bidding_action(self):
         if self.buyer is None:
@@ -258,6 +375,7 @@ class BalootMultiAgentEnv(gym.Env):
                                          doubling_state=self.doubling_state)
 
     def _bidding_step(self, agent, action):
+        self.bidding_history.append((agent, action))
         action_to_suit = {34: '♠', 35: '♥', 36: '♦', 37: '♣'}
         if self.buyer is None:
             if action == 32:
@@ -390,6 +508,7 @@ class BalootMultiAgentEnv(gym.Env):
 
         if all(c is not None for c in self.current_trick):
             self.last_trick = list(self.current_trick)
+            self.last_trick_order = list(self.trick_order)
 
             winner = self._evaluate_trick_winner()
             self.trick_history.append({"cards": list(self.current_trick), "winner": winner})

@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 from env.environment import BalootMultiAgentEnv
 from agents.mappo_agent import MAPPOAgent
 from model import build_mappo_network
-from utils import flatten_obs, get_global_state
+from utils import flatten_obs, get_global_state, infer_model_dimensions
 from env.utils import translate_action, sort_hand_canonical, create_deck
 
 os.system('')
@@ -158,9 +158,7 @@ def main(args):
     env = BalootMultiAgentEnv()
     obs_dict = env.reset()
 
-    local_obs_dim = flatten_obs(obs_dict).shape[0]
-    global_state_dim = get_global_state(env).shape[0]
-    act_dim = env.action_space.n
+    local_obs_dim, global_state_dim, act_dim = infer_model_dimensions(env, obs_dict)
 
     agent = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network)
     try:
@@ -181,7 +179,7 @@ def main(args):
             print_game_state(env, human_player_id)
             action = get_human_action(env, obs_dict)
         else:
-            local_obs = flatten_obs(obs_dict)
+            local_obs = flatten_obs(obs_dict, env.observation_space)
             global_state = get_global_state(env)
             mask = obs_dict["action_mask"]
             action, _, _ = agent.select_action(local_obs, global_state, mask)

@@ -11,15 +11,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 from env.environment import BalootMultiAgentEnv
 from agents.mappo_agent import MAPPOAgent
 from model import build_mappo_network
-from utils import flatten_obs, get_global_state
+from utils import flatten_obs, get_global_state, infer_model_dimensions
 
 def main(args):
     env = BalootMultiAgentEnv()
     obs_dict = env.reset()
 
-    local_obs_dim = flatten_obs(obs_dict).shape[0]
-    global_state_dim = get_global_state(env).shape[0]
-    act_dim = env.action_space.n
+    local_obs_dim, global_state_dim, act_dim = infer_model_dimensions(env, obs_dict)
 
     agent0 = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network)
     try:
@@ -56,7 +54,7 @@ def main(args):
             mask = obs_dict["action_mask"]
             
             if current_player in [0, 2]:
-                local_obs = flatten_obs(obs_dict)
+                local_obs = flatten_obs(obs_dict, env.observation_space)
                 global_state = get_global_state(env)
                 action, _, _ = agent0.select_action(local_obs, global_state, mask)
             else:
@@ -64,7 +62,7 @@ def main(args):
                     valid_actions = np.where(mask == 1)[0]
                     action = np.random.choice(valid_actions)
                 else:
-                    local_obs = flatten_obs(obs_dict)
+                    local_obs = flatten_obs(obs_dict, env.observation_space)
                     global_state = get_global_state(env)
                     action, _, _ = agent1.select_action(local_obs, global_state, mask)
             

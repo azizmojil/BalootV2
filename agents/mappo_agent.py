@@ -1,13 +1,15 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
-from utils import flatten_obs
+from utils import require_positive_int
 
 class MAPPOAgent:
     def __init__(self, local_obs_dim, global_state_dim, act_dim, model_builder,
                  lr=3e-4, gamma=0.99, clip_range=0.2, epochs=10, 
                  batch_size=64, value_coef=0.5, entropy_coef=0.01, gae_lambda=0.95):
-        self.act_dim = act_dim
+        self.act_dim = require_positive_int(act_dim, "act_dim")
+        self.local_obs_dim = require_positive_int(local_obs_dim, "local_obs_dim")
+        self.global_state_dim = require_positive_int(global_state_dim, "global_state_dim")
         self.gamma = gamma
         self.clip_range = clip_range
         self.epochs = epochs
@@ -21,7 +23,23 @@ class MAPPOAgent:
         self.value_func = self.get_value_for_single_obs
         self.last_update_stats = {}
 
+    def _as_vector(self, name, value, expected_dim):
+        """Converts an input to a finite 1-D float32 vector of the expected length."""
+        arr = np.asarray(value, dtype=np.float32).reshape(-1)
+        if arr.shape[0] != expected_dim:
+            raise ValueError(f"{name} has length {arr.shape[0]}, expected {expected_dim}")
+        if not np.all(np.isfinite(arr)):
+            raise ValueError(f"{name} contains non-finite values")
+        return arr
+
+    def _validate_batch_shape(self, arr, name, expected_dim):
+        if arr.ndim != 2 or arr.shape[1] != expected_dim:
+            raise ValueError(f"{name} must have shape (batch, {expected_dim}), got {arr.shape}")
+
     def select_action(self, local_obs, global_state, mask):
+        local_obs = self._as_vector("local_obs", local_obs, self.local_obs_dim)
+        global_state = self._as_vector("global_state", global_state, self.global_state_dim)
+        mask = self._as_vector("mask", mask, self.act_dim)
         if not np.any(mask > 0):
             raise ValueError(f"Cannot select an action because the action mask has no valid actions. "
                              f"mask_shape={np.shape(mask)}")
@@ -75,10 +93,30 @@ class MAPPOAgent:
         actions = np.array(memory["actions"], dtype=np.int32)
         if len(actions) == 0:
             raise ValueError("Cannot update MAPPOAgent with an empty memory buffer.")
+        self._validate_batch_shape(local_states, "local_states", self.local_obs_dim)
+        self._validate_batch_shape(global_states, "global_states", self.global_state_dim)
+        self._validate_batch_shape(masks, "action_masks", self.act_dim)
+        if not np.all(np.isfinite(local_states)) or not np.all(np.isfinite(global_states)) or not np.all(np.isfinite(masks)):
+            raise ValueError("Cannot update MAPPOAgent with non-finite states or action masks.")
+        batch_size = len(actions)
+        if local_states.shape[0] != batch_size or global_states.shape[0] != batch_size or masks.shape[0] != batch_size:
+            raise ValueError(
+                "MAPPOAgent memory arrays must have the same batch length: "
+                f"actions={batch_size}, local_states={local_states.shape[0]}, "
+                f"global_states={global_states.shape[0]}, action_masks={masks.shape[0]}"
+            )
+        if np.any(actions < 0) or np.any(actions >= self.act_dim):
+            raise ValueError(f"actions must be in [0, {self.act_dim})")
         old_log_probs = np.array(memory["log_probs"], dtype=np.float32).flatten()
         old_values = np.array(memory["values"], dtype=np.float32).flatten()
         advantages = np.array(memory["advantages"], dtype=np.float32).flatten()
         returns = np.array(memory["returns"], dtype=np.float32).flatten()
+        if not all(len(arr) == batch_size for arr in (old_log_probs, old_values, advantages, returns)):
+            raise ValueError(
+                "MAPPOAgent memory statistics must match the action batch length: "
+                f"actions={batch_size}, log_probs={len(old_log_probs)}, values={len(old_values)}, "
+                f"advantages={len(advantages)}, returns={len(returns)}"
+            )
 
         advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
 

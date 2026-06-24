@@ -6,6 +6,8 @@ from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, c
 
 
 class BalootMultiAgentEnv(gym.Env):
+    """Baloot environment with explicit per-round bidding and trick state."""
+
     metadata = {"render_modes": ["human"]}
     NUM_PLAYERS = 4
     BIDDING_HISTORY_LENGTH = NUM_PLAYERS
@@ -36,6 +38,7 @@ class BalootMultiAgentEnv(gym.Env):
         self.round_count = 0
         self.match_over = False
         self.dealer = self._rng.randint(0, 3)
+        # Last player who raised the doubling state; None when the contract is not doubled.
         self.last_doubler = None
         # Player order for cards in the active trick; None before a trick is led.
         self.trick_order = None
@@ -245,7 +248,10 @@ class BalootMultiAgentEnv(gym.Env):
             if not np.all(np.isfinite(arr)):
                 raise ValueError(f"Observation '{key}' contains non-finite values")
             if np.any(arr < -self.INFERENCE_EPSILON) or np.any(arr > 1.0 + self.INFERENCE_EPSILON):
-                raise ValueError(f"Observation '{key}' contains values outside [0, 1]")
+                raise ValueError(
+                    f"Observation '{key}' contains values outside [0, 1]: "
+                    f"min={arr.min()}, max={arr.max()}"
+                )
 
     def get_observation(self):
         if not hasattr(self, "hands"):

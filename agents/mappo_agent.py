@@ -110,7 +110,11 @@ class MAPPOAgent:
         advantages = np.array(memory["advantages"], dtype=np.float32).flatten()
         returns = np.array(memory["returns"], dtype=np.float32).flatten()
         if not all(len(arr) == batch_size for arr in (old_log_probs, old_values, advantages, returns)):
-            raise ValueError("MAPPOAgent memory statistics must match the action batch length.")
+            raise ValueError(
+                "MAPPOAgent memory statistics must match the action batch length: "
+                f"actions={batch_size}, log_probs={len(old_log_probs)}, values={len(old_values)}, "
+                f"advantages={len(advantages)}, returns={len(returns)}"
+            )
 
         advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
 

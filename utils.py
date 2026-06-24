@@ -45,7 +45,10 @@ def flatten_obs(obs_dict, observation_space=None, exclude=("action_mask",)):
 
 
 def infer_model_dimensions(env, obs_dict=None):
-    """Derives MAPPO input and action dimensions from the current environment."""
+    """Derives MAPPO input and action dimensions from the current environment.
+
+    If obs_dict is omitted, this resets env to sample an observation.
+    """
     if obs_dict is None:
         obs_dict = env.reset()
     local_obs = flatten_obs(obs_dict, env.observation_space)

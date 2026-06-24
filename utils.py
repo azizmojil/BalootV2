@@ -3,6 +3,17 @@ from gymnasium import spaces
 from env.constants import BID_ACTIONS, RANKS, SUITS, TARGET_SCORE
 from env.utils import one_hot_index
 
+
+def positive_int(value, name):
+    try:
+        value = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a positive integer, got {value!r}") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer, got {value}")
+    return value
+
+
 def _observation_keys(obs_dict, observation_space=None, exclude=("action_mask",)):
     if observation_space is not None:
         if not isinstance(observation_space, spaces.Dict):

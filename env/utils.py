@@ -59,9 +59,12 @@ def one_hot_card(card):
 
 def one_hot_index(index, size):
     vec = np.zeros(size, dtype=np.float32)
-    if index is not None and 0 <= index < size:
+    if index is None:
+        return vec
+    if 0 <= index < size:
         vec[index] = 1.0
-    return vec
+        return vec
+    raise ValueError(f"index must be in [0, {size}), got {index}")
 
 
 def pad_array(arr, target_length, pad_value=0.0, axis=0):

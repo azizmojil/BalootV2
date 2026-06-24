@@ -1,5 +1,6 @@
 import numpy as np
 from env.constants import BID_ACTIONS, RANKS, SUITS, TARGET_SCORE
+from env.utils import one_hot_index
 
 def flatten_obs(obs_dict):
     """Flattens the observation dictionary into a single numpy array."""
@@ -16,16 +17,10 @@ def get_global_state(env):
     trump_map = {None: 0, '♠': 1, '♥': 2, '♦': 3, '♣': 4}
     ds_map = {None: 0, 'Double': 1, 'Three': 2, 'Four': 3, 'Gahwa': 4}
 
-    def one_hot(index, size):
-        vec = np.zeros(size, dtype=np.float32)
-        if index is not None and 0 <= index < size:
-            vec[index] = 1.0
-        return vec
-
     def player_one_hot(player, include_none=False):
         if include_none:
-            return one_hot(4 if player is None else player, 5)
-        return one_hot(player, 4)
+            return one_hot_index(4 if player is None else player, 5)
+        return one_hot_index(player, 4)
 
     def action_one_hot(action, include_none=False):
         size = len(BID_ACTIONS) + (1 if include_none else 0)
@@ -60,10 +55,10 @@ def get_global_state(env):
     ]).astype(np.float32)
 
     game_context = np.concatenate([
-        one_hot(phase_map.get(env.phase, 0), 2),
-        one_hot(gt_map.get(env.game_type, 0), 3),
-        one_hot(trump_map.get(env.trump_suit, 0), 5),
-        one_hot(ds_map.get(env.doubling_state, 0), 5),
+        one_hot_index(phase_map.get(env.phase, 0), 2),
+        one_hot_index(gt_map.get(env.game_type, 0), 3),
+        one_hot_index(trump_map.get(env.trump_suit, 0), 5),
+        one_hot_index(ds_map.get(env.doubling_state, 0), 5),
         action_one_hot(env.initial_bid, include_none=True),
         action_one_hot(env.final_bid, include_none=True),
     ]).astype(np.float32)

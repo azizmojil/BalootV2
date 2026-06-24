@@ -57,6 +57,13 @@ def one_hot_card(card):
     return vec
 
 
+def one_hot_index(index, size):
+    vec = np.zeros(size, dtype=np.float32)
+    if index is not None and 0 <= index < size:
+        vec[index] = 1.0
+    return vec
+
+
 def pad_array(arr, target_length, pad_value=0.0, axis=0):
     arr = np.array(arr)
     current_length = arr.shape[axis]

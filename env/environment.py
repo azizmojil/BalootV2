@@ -168,12 +168,6 @@ class BalootMultiAgentEnv(gym.Env):
                     prior_sum = total_hidden_slots
                 self.card_ownership[card_idx, :, observer] = prior / prior_sum
 
-    def _one_hot(self, index, size):
-        vec = np.zeros(size, dtype=np.float32)
-        if index is not None and 0 <= index < size:
-            vec[index] = 1.0
-        return vec
-
     def _relative_player_index(self, player, observer):
         if player is None:
             return None
@@ -182,8 +176,8 @@ class BalootMultiAgentEnv(gym.Env):
     def _relative_player_one_hot(self, player, observer, include_none=False):
         rel = self._relative_player_index(player, observer)
         if include_none:
-            return self._one_hot(self.NUM_PLAYERS if rel is None else rel, self.NUM_PLAYERS + 1)
-        return self._one_hot(rel, self.NUM_PLAYERS)
+            return one_hot_index(self.NUM_PLAYERS if rel is None else rel, self.NUM_PLAYERS + 1)
+        return one_hot_index(rel, self.NUM_PLAYERS)
 
     def _relative_player_order(self, observer):
         return [(observer + offset) % self.NUM_PLAYERS for offset in range(self.NUM_PLAYERS)]
@@ -234,8 +228,6 @@ class BalootMultiAgentEnv(gym.Env):
     def _validate_observation(self, obs):
         expected_keys = tuple(self.OBSERVATION_SCHEMA.keys())
         actual_keys = tuple(obs.keys())
-        if set(actual_keys) != set(expected_keys):
-            raise ValueError(f"Observation keys must be {expected_keys}, got {actual_keys}")
         if actual_keys != expected_keys:
             raise ValueError("Observation keys are out of schema order; flatten_obs depends on stable key order")
         for key, shape in self.OBSERVATION_SCHEMA.items():
@@ -267,10 +259,10 @@ class BalootMultiAgentEnv(gym.Env):
         trump_map = {None: 0, '♠': 1, '♥': 2, '♦': 3, '♣': 4}
         ds_map = {None: 0, 'Double': 1, 'Three': 2, 'Four': 3, 'Gahwa': 4}
         game_context = np.concatenate([
-            self._one_hot(phase_map[self.phase], 2),
-            self._one_hot(gt_map[self.game_type], 3),
-            self._one_hot(trump_map[self.trump_suit], 5),
-            self._one_hot(ds_map[self.doubling_state], 5),
+            one_hot_index(phase_map[self.phase], 2),
+            one_hot_index(gt_map[self.game_type], 3),
+            one_hot_index(trump_map[self.trump_suit], 5),
+            one_hot_index(ds_map[self.doubling_state], 5),
             self._bid_action_one_hot(self.initial_bid, include_none=True),
             self._bid_action_one_hot(self.final_bid, include_none=True),
         ]).astype(np.float32)
@@ -294,8 +286,8 @@ class BalootMultiAgentEnv(gym.Env):
         played_cards = (1.0 - self.remaining_cards).astype(np.float32)
         unknown_cards = np.clip(self.remaining_cards - own_hand, 0.0, 1.0).astype(np.float32)
 
-        owner_order = self._relative_player_order(ag)
-        own_knowledge = self.card_ownership[:, owner_order, ag].astype(np.float32)
+        relative_owner_order = self._relative_player_order(ag)
+        own_knowledge = self.card_ownership[:, relative_owner_order, ag].astype(np.float32)
         own_knowledge_flat = own_knowledge.flatten()
 
         current_order = (self.trick_order if self.trick_order is not None

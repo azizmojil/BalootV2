@@ -15,7 +15,9 @@ class BalootMultiAgentEnv(gym.Env):
     INFERENCE_EPSILON = 1e-3
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
     OBSERVATION_SCHEMA = {
+        # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
         "player_roles": (22,),
+        # Phase, game type, trump, doubling, initial bid, and final bid one-hots.
         "game_context": (39,),
         "score_context": (10,),
         "faceup_card": (32,),
@@ -187,6 +189,9 @@ class BalootMultiAgentEnv(gym.Env):
             return one_hot_index(self.NUM_PLAYERS if rel is None else rel, self.NUM_PLAYERS + 1)
         return one_hot_index(rel, self.NUM_PLAYERS)
 
+    def _default_player_order(self):
+        return list(range(self.NUM_PLAYERS))
+
     def _relative_player_order(self, observer):
         return [(observer + offset) % self.NUM_PLAYERS for offset in range(self.NUM_PLAYERS)]
 
@@ -221,7 +226,7 @@ class BalootMultiAgentEnv(gym.Env):
     def _bidding_history_features(self, observer):
         features = []
         entries = list(self.bidding_history[-self.BIDDING_HISTORY_LENGTH:])
-        # Most recent recorded bids occupy the earliest slots; unused trailing slots are zero-padded.
+        # Recent recorded bids keep chronological order; unused trailing slots are zero-padded.
         while len(entries) < self.BIDDING_HISTORY_LENGTH:
             entries.append((None, None))
         for item in entries:
@@ -305,7 +310,7 @@ class BalootMultiAgentEnv(gym.Env):
         # trick_order is set as soon as a trick is led. Before that, no card has
         # been played into current_trick, so the zero encoding is order-agnostic.
         current_order = (self.trick_order if self.trick_order is not None
-                         else list(range(self.NUM_PLAYERS)))
+                         else self._default_player_order())
         trick_feat = self._cards_by_player_order(self.current_trick, current_order)
         last_trick_feat = self._cards_by_player_order(self.last_trick, self.last_trick_order)
 

@@ -5,6 +5,7 @@ from env.utils import one_hot_index
 
 
 def positive_int(value, name):
+    """Converts value to a positive int or raises ValueError with the provided field name."""
     try:
         value = int(value)
     except (TypeError, ValueError) as exc:
@@ -15,6 +16,7 @@ def positive_int(value, name):
 
 
 def _observation_keys(obs_dict, observation_space=None, exclude=("action_mask",)):
+    """Returns observation feature keys in schema order, excluding non-network fields."""
     if observation_space is not None:
         if not isinstance(observation_space, spaces.Dict):
             raise TypeError(f"observation_space must be a gymnasium.spaces.Dict, got {type(observation_space).__name__}")

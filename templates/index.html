@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --trick-card-left-angle: 84deg;
-            --trick-card-right-angle: -84deg;
+            --trick-card-left-rotation: 84deg;
+            --trick-card-right-rotation: -84deg;
         }
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
         .card { 
@@ -108,8 +108,8 @@
             border-radius: 5px;
             background: rgba(15, 23, 42, 0.2);
         }
-        .trick-slot.left .playing-card { transform: rotate(var(--trick-card-left-angle)) translateX(4px); }
-        .trick-slot.right .playing-card { transform: rotate(var(--trick-card-right-angle)) translateX(-4px); }
+        .trick-slot.left .playing-card { transform: rotate(var(--trick-card-left-rotation)) translateX(4px); }
+        .trick-slot.right .playing-card { transform: rotate(var(--trick-card-right-rotation)) translateX(-4px); }
         .trick-slot.top .playing-card { transform: rotate(180deg); }
         .trick-slot.bottom .playing-card { transform: rotate(0deg); border-color: #2563eb; }
         .mini-card {
@@ -235,12 +235,13 @@
         }
 
         function escapeHtml(str) {
-            return String(str || '').replace(/[&<>"']/g, char => ({
+            return String(str || '').replace(/[&<>"'`]/g, char => ({
                 '&': '&amp;',
                 '<': '&lt;',
                 '>': '&gt;',
                 '"': '&quot;',
-                "'": '&#39;'
+                "'": '&#39;',
+                '`': '&#96;'
             }[char]));
         }
 
@@ -256,7 +257,7 @@
         function setPixelCardElement(element, str, extraClasses = '') {
             const cardText = str || '';
             element.className = `playing-card ${getCardColorClass(cardText)} ${extraClasses}`;
-            element.dataset.card = cardText;
+            element.dataset.card = escapeHtml(cardText);
             element.innerHTML = `<span class="card-rank">${escapeHtml(cardText)}</span>`;
         }
 
@@ -374,14 +375,14 @@
                 // Hand
                 const handContainer = document.getElementById('player-hand');
                 handContainer.innerHTML = '';
-                const totalCards = Math.max(state.hand.length - 1, 1);
+                const fanSpreadBase = Math.max(state.hand.length - 1, 1);
                 state.hand.forEach((card, index) => {
                     const div = document.createElement('div');
-                    const spread = state.hand.length > 1 ? (index / totalCards - 0.5) : 0;
+                    const spread = state.hand.length > 1 ? (index / fanSpreadBase - 0.5) : 0;
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
                     div.className = `playing-card ${getCardColorClass(card)} hand-card`;
-                    div.dataset.card = card;
+                    div.dataset.card = escapeHtml(card);
                     div.style.setProperty('--fan-rotation', `${rotation}deg`);
                     div.style.setProperty('--fan-offset', `${offset}px`);
                     div.style.zIndex = index + 1;

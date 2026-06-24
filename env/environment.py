@@ -809,7 +809,7 @@ class BalootMultiAgentEnv(gym.Env):
         hidden = [c for c in range(32)
                   if self.remaining_cards[c] == 1
                   and np.isclose(self.card_ownership[c, :, agent].sum(), 1.0, rtol=0, atol=eps)
-                  and not np.any(np.isclose(self.card_ownership[c, :, agent], 1.0))]
+                  and not self._is_known_to_observer(c, agent)]
 
         for player in range(4):
             hidden_types = self._hidden_declared_set_types(player)
@@ -841,10 +841,9 @@ class BalootMultiAgentEnv(gym.Env):
                     continue
 
                 set_support = np.float32(counts[card_idx] / max_count)
-                likelihood = np.ones(self.NUM_PLAYERS, dtype=np.float32)
                 # Non-declaring owners stay neutral; the declaring owner gets boosted by normalized set support.
-                likelihood[player] += self.SET_INFERENCE_STRENGTH * set_support
-                post = prior * likelihood
+                post = prior.copy()
+                post[player] *= 1.0 + self.SET_INFERENCE_STRENGTH * set_support
                 post_sum = post.sum()
                 if post_sum > 0:
                     self.card_ownership[card_idx, :, agent] = post / post_sum

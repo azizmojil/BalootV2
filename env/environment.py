@@ -220,17 +220,21 @@ class BalootMultiAgentEnv(gym.Env):
             entries.append((None, None))
         for item in entries:
             actor, action = item
-            actor_feat = (np.zeros(self.NUM_PLAYERS, dtype=np.float32)
-                          if actor is None
-                          else self._relative_player_one_hot(actor, observer))
+            if actor is None:
+                actor_feat = np.zeros(self.NUM_PLAYERS, dtype=np.float32)
+            else:
+                actor_feat = self._relative_player_one_hot(actor, observer)
             features.append(actor_feat)
             features.append(self._bid_action_one_hot(action))
         return np.concatenate(features).astype(np.float32)
 
     def _validate_observation(self, obs):
         expected_keys = tuple(self.OBSERVATION_SCHEMA.keys())
-        if tuple(obs.keys()) != expected_keys:
-            raise ValueError(f"Observation keys must be {expected_keys}, got {tuple(obs.keys())}")
+        actual_keys = tuple(obs.keys())
+        if set(actual_keys) != set(expected_keys):
+            raise ValueError(f"Observation keys must be {expected_keys}, got {actual_keys}")
+        if actual_keys != expected_keys:
+            raise ValueError("Observation keys are out of schema order; flatten_obs depends on stable key order")
         for key, shape in self.OBSERVATION_SCHEMA.items():
             arr = obs[key]
             if arr.shape != shape:

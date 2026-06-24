@@ -1,5 +1,5 @@
 import numpy as np
-from env.constants import BID_ACTIONS, TARGET_SCORE
+from env.constants import BID_ACTIONS, RANKS, SUITS, TARGET_SCORE
 
 def flatten_obs(obs_dict):
     """Flattens the observation dictionary into a single numpy array."""
@@ -8,74 +8,94 @@ def flatten_obs(obs_dict):
                            if k != 'action_mask'])
 
 def get_global_state(env):
-    """Aggregates all necessary information into a single numerical global state vector."""
-    
-    suit_map = {None: -1, '♠': 0, '♥': 1, '♦': 2, '♣': 3}
-    rank_map = {None: -1, '7': 0, '8': 1, '9': 2, '10': 3, 'J': 4, 'Q': 5, 'K': 6, 'A': 7}
+    """Aggregates critic-only game information into a fixed binary/normalized vector."""
+
+    deck = [(suit, rank) for suit in SUITS for rank in RANKS]
     phase_map = {'bidding': 0, 'playing': 1}
     gt_map = {None: 0, 'Sun': 1, 'Hukoom': 2}
+    trump_map = {None: 0, '♠': 1, '♥': 2, '♦': 3, '♣': 4}
     ds_map = {None: 0, 'Double': 1, 'Three': 2, 'Four': 3, 'Gahwa': 4}
 
-    def encode_card(card):
-        """Encodes a card tuple into a normalized scalar; 0 represents no/unknown card."""
-        if card is None or not isinstance(card, (tuple, list)) or len(card) != 2:
-            return 0.0
-        suit, rank = card
-        if rank not in rank_map or suit not in suit_map:
-            return 0.0
-        return ((rank_map[rank] * 4 + suit_map[suit]) + 1) / 33.0
+    def one_hot(index, size):
+        vec = np.zeros(size, dtype=np.float32)
+        if index is not None and 0 <= index < size:
+            vec[index] = 1.0
+        return vec
 
-    def encode_player(player):
-        """Encodes a player id into a normalized scalar; 0 represents no player."""
-        return 0.0 if player is None else (player + 1) / 5.0
+    def player_one_hot(player, include_none=False):
+        if include_none:
+            return one_hot(4 if player is None else player, 5)
+        return one_hot(player, 4)
 
-    def encode_action(action):
-        """Encodes a bidding action into a normalized scalar; 0 represents no bid."""
-        if action not in BID_ACTIONS:
-            return 0.0
-        min_action, max_action = min(BID_ACTIONS), max(BID_ACTIONS)
-        return (action - min_action + 1) / (max_action - min_action + 2)
+    def action_one_hot(action, include_none=False):
+        size = len(BID_ACTIONS) + (1 if include_none else 0)
+        vec = np.zeros(size, dtype=np.float32)
+        if action in BID_ACTIONS:
+            vec[BID_ACTIONS.index(action)] = 1.0
+        elif include_none:
+            vec[-1] = 1.0
+        return vec
 
-    def encode_suit(suit):
-        """Encodes suits distinctly from no-trump/None and invalid values."""
-        if suit is None:
-            return 0.0
-        if suit not in suit_map:
-            return 1.0
-        return (suit_map[suit] + 1) / 5.0
+    def card_one_hot(card):
+        vec = np.zeros(32, dtype=np.float32)
+        if card in deck:
+            vec[deck.index(card)] = 1.0
+        return vec
 
-    all_hands = [encode_card(c) for hand in env.hands for c in hand]
-    expected_hand_cards = 32
-    all_hands.extend([0.0] * (expected_hand_cards - len(all_hands)))
+    def hand_mask(hand):
+        return np.array([1.0 if card in hand else 0.0 for card in deck], dtype=np.float32)
 
-    bidding_info = [
+    all_hands = np.concatenate([hand_mask(hand) for hand in env.hands]).astype(np.float32)
+    remaining_cards = env.remaining_cards.astype(np.float32)
+    played_cards = (1.0 - env.remaining_cards).astype(np.float32)
+    current_trick = np.concatenate([card_one_hot(card) for card in env.current_trick]).astype(np.float32)
+    last_trick = np.concatenate([card_one_hot(card) for card in env.last_trick]).astype(np.float32)
+
+    role_context = np.concatenate([
+        player_one_hot(env.dealer),
+        player_one_hot(env.current_agent),
+        player_one_hot(env.trick_leader),
+        player_one_hot(env.buyer, include_none=True),
+        player_one_hot(getattr(env, "last_doubler", None), include_none=True),
+    ]).astype(np.float32)
+
+    game_context = np.concatenate([
+        one_hot(phase_map.get(env.phase, 0), 2),
+        one_hot(gt_map.get(env.game_type, 0), 3),
+        one_hot(trump_map.get(env.trump_suit, 0), 5),
+        one_hot(ds_map.get(env.doubling_state, 0), 5),
+        action_one_hot(env.initial_bid, include_none=True),
+        action_one_hot(env.final_bid, include_none=True),
+    ]).astype(np.float32)
+
+    progress_scores = np.array([
         min(env.bidding_round, 2) / 2.0,
         min(env.pass_count, 8) / 8.0,
-        encode_action(env.initial_bid),
-        encode_action(env.final_bid),
-        encode_player(env.buyer),
-        ds_map.get(env.doubling_state, 0) / 4.0
-    ]
+        min(env.trick_count, 8) / 8.0,
+        np.clip(env.cumulative_scores[0] / TARGET_SCORE, 0.0, 1.0),
+        np.clip(env.cumulative_scores[1] / TARGET_SCORE, 0.0, 1.0),
+        min(env.team_bant[0], 162) / 162.0,
+        min(env.team_bant[1], 162) / 162.0,
+        min(env.team_tricks[0], 8) / 8.0,
+        min(env.team_tricks[1], 8) / 8.0,
+        min(env.round_count, 32) / 32.0,
+    ], dtype=np.float32)
 
-    trick_info = [encode_card(c) for c in env.current_trick]
-    trick_info.extend([0.0] * (4 - len(trick_info)))
-
-    game_info = [
-        encode_player(env.dealer),
-        encode_player(env.current_agent),
-        encode_player(env.trick_leader),
-        phase_map.get(env.phase, 0),
-        gt_map.get(env.game_type, 0) / 2.0,
-        encode_suit(env.trump_suit),
-        encode_card(env.face_up)
-    ]
-
-    scores = np.array(env.cumulative_scores, dtype=np.float32) / TARGET_SCORE
+    sets_context = np.concatenate([
+        (env.declared_sets / 2).astype(np.float32).flatten(),
+        (env.revealed_sets / 2).astype(np.float32).flatten(),
+        np.array(env.balot, dtype=np.float32),
+    ]).astype(np.float32)
 
     return np.concatenate([
-        np.array(all_hands, dtype=np.float32),
-        np.array(bidding_info, dtype=np.float32),
-        np.array(trick_info, dtype=np.float32),
-        np.array(game_info, dtype=np.float32),
-        np.array(scores, dtype=np.float32)
-    ])
+        all_hands,
+        remaining_cards,
+        played_cards,
+        card_one_hot(env.face_up),
+        current_trick,
+        last_trick,
+        role_context,
+        game_context,
+        progress_scores,
+        sets_context,
+    ]).astype(np.float32)

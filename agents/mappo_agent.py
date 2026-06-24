@@ -32,6 +32,10 @@ class MAPPOAgent:
             raise ValueError(f"{name} contains non-finite values")
         return arr
 
+    def _validate_batch_shape(self, arr, name, expected_dim):
+        if arr.ndim != 2 or arr.shape[1] != expected_dim:
+            raise ValueError(f"{name} must have shape (batch, {expected_dim}), got {arr.shape}")
+
     def select_action(self, local_obs, global_state, mask):
         local_obs = self._as_vector("local_obs", local_obs, self.local_obs_dim)
         global_state = self._as_vector("global_state", global_state, self.global_state_dim)
@@ -89,12 +93,9 @@ class MAPPOAgent:
         actions = np.array(memory["actions"], dtype=np.int32)
         if len(actions) == 0:
             raise ValueError("Cannot update MAPPOAgent with an empty memory buffer.")
-        if local_states.ndim != 2 or local_states.shape[1] != self.local_obs_dim:
-            raise ValueError(f"local_states must have shape (batch, {self.local_obs_dim}), got {local_states.shape}")
-        if global_states.ndim != 2 or global_states.shape[1] != self.global_state_dim:
-            raise ValueError(f"global_states must have shape (batch, {self.global_state_dim}), got {global_states.shape}")
-        if masks.ndim != 2 or masks.shape[1] != self.act_dim:
-            raise ValueError(f"action_masks must have shape (batch, {self.act_dim}), got {masks.shape}")
+        self._validate_batch_shape(local_states, "local_states", self.local_obs_dim)
+        self._validate_batch_shape(global_states, "global_states", self.global_state_dim)
+        self._validate_batch_shape(masks, "action_masks", self.act_dim)
         if not np.all(np.isfinite(local_states)) or not np.all(np.isfinite(global_states)) or not np.all(np.isfinite(masks)):
             raise ValueError("Cannot update MAPPOAgent with non-finite states or action masks.")
         batch_size = len(actions)

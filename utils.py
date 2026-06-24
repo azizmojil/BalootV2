@@ -42,7 +42,7 @@ def flatten_obs(obs_dict, observation_space=None, exclude=("action_mask",)):
             raise ValueError(f"Observation '{key}' contains non-finite values")
         flat_parts.append(arr.ravel())
     if not flat_parts:
-        raise ValueError("Cannot flatten an observation because all observation keys were excluded")
+        raise ValueError(f"Cannot flatten observation: all keys were excluded (excluded: {exclude})")
     return np.concatenate(flat_parts).astype(np.float32)
 
 
@@ -57,11 +57,6 @@ def infer_model_dimensions(env, obs_dict=None):
     local_obs_dim = local_obs.shape[0]
     global_state_dim = get_global_state(env).shape[0]
     act_dim = int(env.action_space.n)
-    if local_obs_dim <= 0 or global_state_dim <= 0 or act_dim <= 0:
-        raise ValueError(
-            f"Invalid model dimensions: local_obs_dim={local_obs_dim}, "
-            f"global_state_dim={global_state_dim}, act_dim={act_dim}"
-        )
     return local_obs_dim, global_state_dim, act_dim
 
 def get_global_state(env):

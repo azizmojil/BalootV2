@@ -16,6 +16,107 @@
         }
         .card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
         .bg-gradient { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); }
+        .playing-card {
+            position: relative;
+            width: 68px;
+            height: 96px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #111827;
+            background:
+                linear-gradient(90deg, rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+                linear-gradient(rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+                #fff7df;
+            background-size: 8px 8px;
+            border: 4px solid #1e293b;
+            border-radius: 3px;
+            box-shadow:
+                inset 0 0 0 3px #fef3c7,
+                inset 0 0 0 6px rgba(30, 41, 59, 0.18),
+                5px 5px 0 rgba(0, 0, 0, 0.35);
+            font-family: "Courier New", monospace;
+            font-weight: 900;
+            image-rendering: pixelated;
+            transition: transform 0.18s steps(3, end), box-shadow 0.18s steps(3, end);
+        }
+        .playing-card::before,
+        .playing-card::after {
+            content: attr(data-card);
+            position: absolute;
+            font-size: 0.68rem;
+            line-height: 1;
+        }
+        .playing-card::before { top: 6px; left: 6px; }
+        .playing-card::after { right: 6px; bottom: 6px; transform: rotate(180deg); }
+        .playing-card .card-rank { font-size: 1.45rem; letter-spacing: -0.08em; }
+        .pixel-red { color: #dc2626; }
+        .pixel-black { color: #111827; }
+        .pixel-gold { color: #ca8a04; }
+        .hand-wrap {
+            min-height: 150px;
+            padding-top: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 0;
+        }
+        .hand-card {
+            margin-left: -18px;
+            cursor: default;
+            transform: rotate(var(--fan-rotation)) translateY(var(--fan-offset));
+            transform-origin: 50% 115%;
+        }
+        .hand-card:first-child { margin-left: 0; }
+        .hand-card:hover {
+            z-index: 30 !important;
+            transform: rotate(var(--fan-rotation)) translateY(calc(var(--fan-offset) - 22px)) scale(1.06);
+            box-shadow:
+                inset 0 0 0 3px #fef3c7,
+                inset 0 0 0 6px rgba(30, 41, 59, 0.18),
+                7px 7px 0 rgba(0, 0, 0, 0.45),
+                0 0 24px rgba(59, 130, 246, 0.45);
+        }
+        .trick-stage {
+            position: relative;
+            height: 320px;
+            width: min(100%, 620px);
+            margin: 0 auto;
+        }
+        .trick-slot {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .trick-slot.top { top: 0; left: 50%; transform: translateX(-50%); }
+        .trick-slot.left { top: 50%; left: 0.75rem; transform: translateY(-50%); }
+        .trick-slot.right { top: 50%; right: 0.75rem; transform: translateY(-50%); }
+        .trick-slot.bottom { bottom: 0; left: 50%; transform: translateX(-50%); }
+        .trick-card-space {
+            width: 76px;
+            height: 104px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed rgba(148, 163, 184, 0.22);
+            border-radius: 5px;
+            background: rgba(15, 23, 42, 0.2);
+        }
+        .trick-slot.left .playing-card { transform: rotate(84deg) translateX(4px); }
+        .trick-slot.right .playing-card { transform: rotate(-84deg) translateX(-4px); }
+        .trick-slot.top .playing-card { transform: rotate(180deg); }
+        .trick-slot.bottom .playing-card { transform: rotate(0deg); border-color: #2563eb; }
+        .mini-card {
+            width: 30px;
+            height: 42px;
+            border-width: 2px;
+            box-shadow: inset 0 0 0 2px #fef3c7, 3px 3px 0 rgba(0, 0, 0, 0.25);
+        }
+        .mini-card::before,
+        .mini-card::after { display: none; }
+        .mini-card .card-rank { font-size: 0.8rem; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col p-4 bg-gradient">
@@ -55,36 +156,34 @@
 
             <!-- Table / Trick Area -->
             <div class="flex-1 flex items-center justify-center min-h-[300px] mb-6 relative">
-                <div class="w-[400px] h-[400px] rounded-full border-2 border-emerald-900/50 bg-emerald-900/20 absolute -z-10 shadow-2xl shadow-emerald-900/20"></div>
-                
                 <!-- Bidding Phase -->
                 <div id="bidding-table" class="hidden text-center">
                     <p class="text-slate-400 mb-4 font-medium tracking-widest uppercase text-sm">Face Up Card</p>
-                    <div id="face-up-card" class="inline-block bg-white text-3xl p-6 rounded-xl shadow-2xl card text-black font-bold min-w-[80px]"></div>
+                    <div id="face-up-card" class="playing-card mx-auto text-3xl"></div>
                 </div>
 
                 <!-- Playing Phase -->
                 <div id="playing-table" class="hidden w-full max-w-2xl">
                     <p class="text-center text-slate-400 mb-8 font-medium tracking-widest uppercase text-sm">Current Trick</p>
-                    <div class="flex justify-center items-center gap-8 relative h-[250px]">
+                    <div class="trick-stage">
                         <!-- Teammate -->
-                        <div class="absolute top-0 flex flex-col items-center">
+                        <div class="trick-slot top">
                             <span class="text-xs text-slate-500 mb-2">Teammate</span>
-                            <div id="trick-teammate" class="w-16 h-24 bg-slate-800 rounded-lg flex items-center justify-center text-2xl font-bold card border border-slate-700"></div>
+                            <div id="trick-teammate" class="trick-card-space"></div>
                         </div>
                         <!-- Left -->
-                        <div class="absolute left-10 flex flex-col items-center">
+                        <div class="trick-slot left">
                             <span class="text-xs text-slate-500 mb-2">Left</span>
-                            <div id="trick-left" class="w-16 h-24 bg-slate-800 rounded-lg flex items-center justify-center text-2xl font-bold card border border-slate-700"></div>
+                            <div id="trick-left" class="trick-card-space"></div>
                         </div>
                         <!-- Right -->
-                        <div class="absolute right-10 flex flex-col items-center">
+                        <div class="trick-slot right">
                             <span class="text-xs text-slate-500 mb-2">Right</span>
-                            <div id="trick-right" class="w-16 h-24 bg-slate-800 rounded-lg flex items-center justify-center text-2xl font-bold card border border-slate-700"></div>
+                            <div id="trick-right" class="trick-card-space"></div>
                         </div>
                         <!-- You -->
-                        <div class="absolute bottom-0 flex flex-col items-center">
-                            <div id="trick-you" class="w-16 h-24 bg-slate-800 rounded-lg flex items-center justify-center text-2xl font-bold card border border-blue-500/50"></div>
+                        <div class="trick-slot bottom">
+                            <div id="trick-you" class="trick-card-space"></div>
                             <span class="text-xs text-blue-400 mt-2">You</span>
                         </div>
                     </div>
@@ -100,7 +199,7 @@
 
             <div class="mt-auto">
                 <p class="text-slate-400 mb-3 text-sm font-medium">Your Hand</p>
-                <div id="player-hand" class="flex gap-2 flex-wrap min-h-[60px]"></div>
+                <div id="player-hand" class="hand-wrap"></div>
             </div>
 
             <!-- Actions -->
@@ -121,6 +220,32 @@
 
     <script>
         let pollTimer = null;
+
+        function getCardColorClass(str) {
+            if (!str) return 'pixel-gold';
+            if (str.includes('♥') || str.includes('♦')) return 'pixel-red';
+            if (str.includes('♠') || str.includes('♣')) return 'pixel-black';
+            return 'pixel-gold';
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function renderPixelCard(str, extraClasses = '') {
+            const cardText = str || '';
+            const safeCardText = escapeHtml(cardText);
+            const colorClass = getCardColorClass(cardText);
+            return `<div class="playing-card ${colorClass} ${extraClasses}" data-card="${safeCardText}">
+                <span class="card-rank">${safeCardText}</span>
+            </div>`;
+        }
 
         function formatCardText(str) {
             if (!str) return '';
@@ -182,7 +307,8 @@
                     document.getElementById('contract-info').classList.add('hidden');
                     document.getElementById('past-tricks-container').classList.add('hidden');
                     
-                    document.getElementById('face-up-card').innerHTML = formatCardText(state.face_up);
+                    document.getElementById('face-up-card').outerHTML = renderPixelCard(state.face_up, 'mx-auto text-3xl');
+                    document.querySelector('#bidding-table .playing-card').id = 'face-up-card';
                 } else {
                     document.getElementById('bidding-table').classList.add('hidden');
                     document.getElementById('playing-table').classList.remove('hidden');
@@ -199,7 +325,7 @@
                     if (state.trick) {
                         state.trick.forEach(t => {
                             if (t.card && positions[t.player]) {
-                                document.getElementById(positions[t.player]).innerHTML = formatCardDarkText(t.card);
+                                document.getElementById(positions[t.player]).innerHTML = renderPixelCard(t.card);
                             }
                         });
                     }
@@ -216,7 +342,7 @@
                             
                             th.cards.forEach(c => {
                                 if (c.card) {
-                                    trickHtml += `<div class="w-7 h-10 bg-white rounded flex items-center justify-center font-bold shadow-sm text-sm cursor-help" title="${c.player}">${formatCardText(c.card)}</div>`;
+                                    trickHtml += `<div class="cursor-help" title="${escapeHtml(c.player)}">${renderPixelCard(c.card, 'mini-card')}</div>`;
                                 }
                             });
                             
@@ -236,10 +362,18 @@
                 // Hand
                 const handContainer = document.getElementById('player-hand');
                 handContainer.innerHTML = '';
-                state.hand.forEach(card => {
+                const totalCards = Math.max(state.hand.length - 1, 1);
+                state.hand.forEach((card, index) => {
                     const div = document.createElement('div');
-                    div.className = 'bg-white text-xl py-3 px-4 rounded-lg shadow-md font-bold card text-center min-w-[60px] cursor-default';
-                    div.innerHTML = formatCardText(card);
+                    const spread = state.hand.length > 1 ? (index / totalCards - 0.5) : 0;
+                    const rotation = spread * 38;
+                    const offset = Math.abs(spread) * 28;
+                    div.className = `playing-card ${getCardColorClass(card)} hand-card`;
+                    div.dataset.card = card;
+                    div.style.setProperty('--fan-rotation', `${rotation}deg`);
+                    div.style.setProperty('--fan-offset', `${offset}px`);
+                    div.style.zIndex = index + 1;
+                    div.innerHTML = `<span class="card-rank">${escapeHtml(card)}</span>`;
                     handContainer.appendChild(div);
                 });
 

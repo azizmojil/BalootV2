@@ -1,15 +1,15 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
-from utils import positive_int
+from utils import require_positive_int
 
 class MAPPOAgent:
     def __init__(self, local_obs_dim, global_state_dim, act_dim, model_builder,
                  lr=3e-4, gamma=0.99, clip_range=0.2, epochs=10, 
                  batch_size=64, value_coef=0.5, entropy_coef=0.01, gae_lambda=0.95):
-        self.act_dim = positive_int(act_dim, "act_dim")
-        self.local_obs_dim = positive_int(local_obs_dim, "local_obs_dim")
-        self.global_state_dim = positive_int(global_state_dim, "global_state_dim")
+        self.act_dim = require_positive_int(act_dim, "act_dim")
+        self.local_obs_dim = require_positive_int(local_obs_dim, "local_obs_dim")
+        self.global_state_dim = require_positive_int(global_state_dim, "global_state_dim")
         self.gamma = gamma
         self.clip_range = clip_range
         self.epochs = epochs
@@ -24,6 +24,7 @@ class MAPPOAgent:
         self.last_update_stats = {}
 
     def _as_vector(self, name, value, expected_dim):
+        """Converts an input to a finite 1-D float32 vector of the expected length."""
         arr = np.asarray(value, dtype=np.float32).reshape(-1)
         if arr.shape[0] != expected_dim:
             raise ValueError(f"{name} has length {arr.shape[0]}, expected {expected_dim}")

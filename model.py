@@ -3,7 +3,7 @@ from math import sqrt
 from tensorflow.keras.layers import Input, Dense, Concatenate, LeakyReLU, LayerNormalization
 from tensorflow.keras.initializers import Orthogonal, Zeros
 from tensorflow.keras.models import Model
-from utils import positive_int
+from utils import require_positive_int
 
 
 def build_mappo_network(local_obs_dim, global_state_dim, act_dim):
@@ -12,9 +12,9 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim):
     The Actor (policy) uses ONLY the local observation.
     The Critic (value) uses BOTH the local observation and global state.
     """
-    local_obs_dim = positive_int(local_obs_dim, "local_obs_dim")
-    global_state_dim = positive_int(global_state_dim, "global_state_dim")
-    act_dim = positive_int(act_dim, "act_dim")
+    local_obs_dim = require_positive_int(local_obs_dim, "local_obs_dim")
+    global_state_dim = require_positive_int(global_state_dim, "global_state_dim")
+    act_dim = require_positive_int(act_dim, "act_dim")
     local_obs_input = Input(shape=(local_obs_dim,), name='local_obs_input')
     global_state_input = Input(shape=(global_state_dim,), name='global_state_input')
     bias_init = Zeros()

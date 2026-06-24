@@ -92,6 +92,7 @@ class BalootMultiAgentEnv(gym.Env):
                 idx = canonical_deck.index(card)
                 self._set_known_card_owner(idx, p, observers=[p])
         self.face_up = self.deck.pop(0)
+        # Active trick play order; set after the leader plays the first card.
         self.trick_order = None
         self.trick_suit = None
         self.trick_count = 0
@@ -99,6 +100,7 @@ class BalootMultiAgentEnv(gym.Env):
         self.current_agent = self.trick_leader
         self.current_trick = [None] * 4
         self.last_trick = [None] * 4
+        # Completed trick play order for last_trick; None until a trick completes.
         self.last_trick_order = None
         self.trick_history = []
         self.bidding_history = []

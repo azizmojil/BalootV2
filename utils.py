@@ -4,7 +4,7 @@ from env.constants import BID_ACTIONS, RANKS, SUITS, TARGET_SCORE
 from env.utils import one_hot_index
 
 
-def positive_int(value, name):
+def require_positive_int(value, name):
     """Converts value to a positive int or raises ValueError with the provided field name."""
     try:
         value = int(value)

@@ -58,6 +58,7 @@ def one_hot_card(card):
 
 
 def one_hot_index(index, size):
+    """Returns a one-hot vector, all zeros for None, and raises for out-of-range indices."""
     vec = np.zeros(size, dtype=np.float32)
     if index is None:
         return vec

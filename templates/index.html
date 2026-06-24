@@ -8,8 +8,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --trick-card-left-rotation: 84deg;
-            --trick-card-right-rotation: -84deg;
+            --trick-card-left-near-horizontal: 84deg;
+            --trick-card-right-near-horizontal: -84deg;
+            --card-corner-font-size: 0.68rem;
+            --card-rank-font-size: 1.45rem;
+            --card-rank-letter-spacing: -0.08em;
+            --hand-card-overlap: -18px;
+            --hand-card-hover-lift: 22px;
+            --hand-card-hover-scale: 1.06;
         }
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
         .card { 
@@ -48,12 +54,15 @@
         .playing-card::after {
             content: attr(data-card);
             position: absolute;
-            font-size: 0.68rem;
+            font-size: var(--card-corner-font-size);
             line-height: 1;
         }
         .playing-card::before { top: 6px; left: 6px; }
         .playing-card::after { right: 6px; bottom: 6px; transform: rotate(180deg); }
-        .playing-card .card-rank { font-size: 1.45rem; letter-spacing: -0.08em; }
+        .playing-card .card-rank {
+            font-size: var(--card-rank-font-size);
+            letter-spacing: var(--card-rank-letter-spacing);
+        }
         .pixel-red { color: #dc2626; }
         .pixel-black { color: #111827; }
         .pixel-gold { color: #ca8a04; }
@@ -66,7 +75,7 @@
             gap: 0;
         }
         .hand-card {
-            margin-left: -18px;
+            margin-left: var(--hand-card-overlap);
             cursor: default;
             transform: rotate(var(--fan-rotation)) translateY(var(--fan-offset));
             transform-origin: 50% 115%;
@@ -74,7 +83,7 @@
         .hand-card:first-child { margin-left: 0; }
         .hand-card:hover {
             z-index: 30 !important;
-            transform: rotate(var(--fan-rotation)) translateY(calc(var(--fan-offset) - 22px)) scale(1.06);
+            transform: rotate(var(--fan-rotation)) translateY(calc(var(--fan-offset) - var(--hand-card-hover-lift))) scale(var(--hand-card-hover-scale));
             box-shadow:
                 inset 0 0 0 3px #fef3c7,
                 inset 0 0 0 6px rgba(30, 41, 59, 0.18),
@@ -108,8 +117,8 @@
             border-radius: 5px;
             background: rgba(15, 23, 42, 0.2);
         }
-        .trick-slot.left .playing-card { transform: rotate(var(--trick-card-left-rotation)) translateX(4px); }
-        .trick-slot.right .playing-card { transform: rotate(var(--trick-card-right-rotation)) translateX(-4px); }
+        .trick-slot.left .playing-card { transform: rotate(var(--trick-card-left-near-horizontal)) translateX(4px); }
+        .trick-slot.right .playing-card { transform: rotate(var(--trick-card-right-near-horizontal)) translateX(-4px); }
         .trick-slot.top .playing-card { transform: rotate(180deg); }
         .trick-slot.bottom .playing-card { transform: rotate(0deg); border-color: #2563eb; }
         .mini-card {
@@ -226,6 +235,15 @@
         let pollTimer = null;
         const FAN_ROTATION_DEGREES = 38;
         const FAN_VERTICAL_OFFSET = 28;
+        const FAN_CENTER_OFFSET = 0.5;
+        const HTML_ESCAPE_CHARS = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+            '`': '&#96;'
+        };
 
         function getCardColorClass(str) {
             if (!str) return 'pixel-gold';
@@ -235,14 +253,7 @@
         }
 
         function escapeHtml(str) {
-            return String(str || '').replace(/[&<>"'`]/g, char => ({
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#39;',
-                '`': '&#96;'
-            }[char]));
+            return String(str || '').replace(/[&<>"'`]/g, char => HTML_ESCAPE_CHARS[char]);
         }
 
         function renderPixelCard(str, extraClasses = '') {
@@ -378,7 +389,7 @@
                 const fanSpreadBase = Math.max(state.hand.length - 1, 1);
                 state.hand.forEach((card, index) => {
                     const div = document.createElement('div');
-                    const spread = state.hand.length > 1 ? (index / fanSpreadBase - 0.5) : 0;
+                    const spread = state.hand.length > 1 ? (index / fanSpreadBase - FAN_CENTER_OFFSET) : 0;
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
                     div.className = `playing-card ${getCardColorClass(card)} hand-card`;

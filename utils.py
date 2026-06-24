@@ -40,7 +40,7 @@ def flatten_obs(obs_dict, observation_space=None, exclude=("action_mask",)):
             raise ValueError(f"Observation '{key}' contains non-finite values")
         flat_parts.append(arr.ravel())
     if not flat_parts:
-        raise ValueError("Cannot flatten an observation with no features")
+        raise ValueError("Cannot flatten an observation because all observation keys were excluded")
     return np.concatenate(flat_parts).astype(np.float32)
 
 
@@ -48,7 +48,8 @@ def infer_model_dimensions(env, obs_dict=None):
     """Derives MAPPO input and action dimensions from the current environment."""
     if obs_dict is None:
         obs_dict = env.reset()
-    local_obs_dim = flatten_obs(obs_dict, env.observation_space).shape[0]
+    local_obs = flatten_obs(obs_dict, env.observation_space)
+    local_obs_dim = local_obs.shape[0]
     global_state_dim = get_global_state(env).shape[0]
     act_dim = int(env.action_space.n)
     if local_obs_dim <= 0 or global_state_dim <= 0 or act_dim <= 0:

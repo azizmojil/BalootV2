@@ -98,7 +98,11 @@ class MAPPOAgent:
             raise ValueError("Cannot update MAPPOAgent with non-finite states or action masks.")
         batch_size = len(actions)
         if local_states.shape[0] != batch_size or global_states.shape[0] != batch_size or masks.shape[0] != batch_size:
-            raise ValueError("MAPPOAgent memory arrays must have the same batch length.")
+            raise ValueError(
+                "MAPPOAgent memory arrays must have the same batch length: "
+                f"actions={batch_size}, local_states={local_states.shape[0]}, "
+                f"global_states={global_states.shape[0]}, action_masks={masks.shape[0]}"
+            )
         if np.any(actions < 0) or np.any(actions >= self.act_dim):
             raise ValueError(f"actions must be in [0, {self.act_dim})")
         old_log_probs = np.array(memory["log_probs"], dtype=np.float32).flatten()

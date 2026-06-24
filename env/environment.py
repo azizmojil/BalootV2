@@ -56,6 +56,9 @@ class BalootMultiAgentEnv(gym.Env):
         self.round_count = 0
         self.match_over = False
         self.dealer = self._rng.randint(0, 3)
+        self.last_doubler = None
+        self.trick_order = None
+        self.last_trick_order = None
         return self._reset_round()
 
     def _reset_round(self):
@@ -215,7 +218,7 @@ class BalootMultiAgentEnv(gym.Env):
     def _bidding_history_features(self, observer):
         features = []
         entries = list(self.bidding_history[-self.BIDDING_HISTORY_LENGTH:])
-        # Recorded bids occupy the earliest slots; unused trailing slots are zero-padded.
+        # Most recent recorded bids occupy the earliest slots; unused trailing slots are zero-padded.
         while len(entries) < self.BIDDING_HISTORY_LENGTH:
             entries.append((None, None))
         for item in entries:
@@ -232,7 +235,7 @@ class BalootMultiAgentEnv(gym.Env):
         expected_keys = tuple(self.OBSERVATION_SCHEMA.keys())
         actual_keys = tuple(obs.keys())
         if actual_keys != expected_keys:
-            raise ValueError(f"Observation keys are out of schema order; expected {expected_keys}, got {actual_keys}")
+            raise ValueError(f"Observation keys do not match schema; expected {expected_keys}, got {actual_keys}")
         for key, shape in self.OBSERVATION_SCHEMA.items():
             arr = obs[key]
             if arr.shape != shape:

@@ -7,6 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --trick-card-left-angle: 84deg;
+            --trick-card-right-angle: -84deg;
+        }
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
         .card { 
             transition: all 0.2s ease; 
@@ -104,8 +108,8 @@
             border-radius: 5px;
             background: rgba(15, 23, 42, 0.2);
         }
-        .trick-slot.left .playing-card { transform: rotate(84deg) translateX(4px); }
-        .trick-slot.right .playing-card { transform: rotate(-84deg) translateX(-4px); }
+        .trick-slot.left .playing-card { transform: rotate(var(--trick-card-left-angle)) translateX(4px); }
+        .trick-slot.right .playing-card { transform: rotate(var(--trick-card-right-angle)) translateX(-4px); }
         .trick-slot.top .playing-card { transform: rotate(180deg); }
         .trick-slot.bottom .playing-card { transform: rotate(0deg); border-color: #2563eb; }
         .mini-card {
@@ -220,6 +224,8 @@
 
     <script>
         let pollTimer = null;
+        const FAN_ROTATION_DEGREES = 38;
+        const FAN_VERTICAL_OFFSET = 28;
 
         function getCardColorClass(str) {
             if (!str) return 'pixel-gold';
@@ -245,6 +251,13 @@
             return `<div class="playing-card ${colorClass} ${extraClasses}" data-card="${safeCardText}">
                 <span class="card-rank">${safeCardText}</span>
             </div>`;
+        }
+
+        function setPixelCardElement(element, str, extraClasses = '') {
+            const cardText = str || '';
+            element.className = `playing-card ${getCardColorClass(cardText)} ${extraClasses}`;
+            element.dataset.card = cardText;
+            element.innerHTML = `<span class="card-rank">${escapeHtml(cardText)}</span>`;
         }
 
         function formatCardText(str) {
@@ -307,8 +320,7 @@
                     document.getElementById('contract-info').classList.add('hidden');
                     document.getElementById('past-tricks-container').classList.add('hidden');
                     
-                    document.getElementById('face-up-card').outerHTML = renderPixelCard(state.face_up, 'mx-auto text-3xl');
-                    document.querySelector('#bidding-table .playing-card').id = 'face-up-card';
+                    setPixelCardElement(document.getElementById('face-up-card'), state.face_up, 'mx-auto text-3xl');
                 } else {
                     document.getElementById('bidding-table').classList.add('hidden');
                     document.getElementById('playing-table').classList.remove('hidden');
@@ -366,8 +378,8 @@
                 state.hand.forEach((card, index) => {
                     const div = document.createElement('div');
                     const spread = state.hand.length > 1 ? (index / totalCards - 0.5) : 0;
-                    const rotation = spread * 38;
-                    const offset = Math.abs(spread) * 28;
+                    const rotation = spread * FAN_ROTATION_DEGREES;
+                    const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
                     div.className = `playing-card ${getCardColorClass(card)} hand-card`;
                     div.dataset.card = card;
                     div.style.setProperty('--fan-rotation', `${rotation}deg`);

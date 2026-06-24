@@ -36,27 +36,29 @@ def get_relative_name(player_id, human_id):
 def add_log(msg):
     game_state["logs"].append(msg)
 
-def run_ai_turns():
+def run_ai_turn():
     env = game_state["env"]
     obs_dict = game_state["obs_dict"]
     agent = game_state["agent"]
     human_id = game_state["human_player_id"]
     
-    while not game_state["done"] and env.current_agent != human_id:
-        current_player = env.current_agent
-        local_obs = flatten_obs(obs_dict, env.observation_space)
-        global_state = get_global_state(env)
-        mask = obs_dict["action_mask"]
-        
-        action, _, _ = agent.select_action(local_obs, global_state, mask)
-        
-        obs_dict, _, dones, _ = env.step(action)
-        game_state["obs_dict"] = obs_dict
-        game_state["done"] = dones.get('__all__', False)
-        
-        action_str = translate_action(action)
-        p_name = get_relative_name(current_player, human_id)
-        add_log(f"{p_name} played: {action_str}")
+    if game_state["done"] or env.current_agent == human_id:
+        return
+
+    current_player = env.current_agent
+    local_obs = flatten_obs(obs_dict, env.observation_space)
+    global_state = get_global_state(env)
+    mask = obs_dict["action_mask"]
+    
+    action, _, _ = agent.select_action(local_obs, global_state, mask)
+    
+    obs_dict, _, dones, _ = env.step(action)
+    game_state["obs_dict"] = obs_dict
+    game_state["done"] = dones.get('__all__', False)
+    
+    action_str = translate_action(action)
+    p_name = get_relative_name(current_player, human_id)
+    add_log(f"{p_name} played: {action_str}")
 
 @app.route('/')
 def index():
@@ -84,8 +86,6 @@ def start_game():
         
     game_state["agent"] = agent
     
-    run_ai_turns()
-    
     return jsonify({"status": "started"})
 
 @app.route('/state', methods=['GET'])
@@ -93,6 +93,9 @@ def get_state():
     env = game_state["env"]
     if env is None:
         return jsonify({"error": "Game not started"}), 400
+
+    if request.args.get("advance_ai") == "1":
+        run_ai_turn()
         
     human_id = game_state["human_player_id"]
     deck = game_state["deck"]
@@ -179,8 +182,6 @@ def take_action():
     
     action_str = translate_action(action)
     add_log(f"You played: {action_str}")
-    
-    run_ai_turns()
     
     return jsonify({"status": "success"})
 

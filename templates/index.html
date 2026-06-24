@@ -416,7 +416,7 @@
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
                     const actionIndex = handCard.action_index;
-                    const canPlayCard = isHumanTurn && state.phase !== 'bidding' && actionIndex != null;
+                    const canPlayCard = isHumanTurn && state.phase !== 'bidding' && actionIndex !== null;
                     div.className = `playing-card ${getCardColorClass(card)} hand-card ${canPlayCard ? 'playable-card' : ''}`;
                     div.dataset.card = safeCard;
                     div.style.setProperty('--fan-rotation', `${rotation}deg`);

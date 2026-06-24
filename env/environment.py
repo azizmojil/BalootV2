@@ -8,6 +8,8 @@ from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, c
 class BalootMultiAgentEnv(gym.Env):
     metadata = {"render_modes": ["human"]}
     NUM_PLAYERS = 4
+    BIDDING_HISTORY_LENGTH = NUM_PLAYERS
+    BIDDING_HISTORY_FEATURES = BIDDING_HISTORY_LENGTH * (NUM_PLAYERS + len(BID_ACTIONS))
     INFERENCE_EPSILON = 1e-3
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
     OBSERVATION_SCHEMA = {
@@ -23,7 +25,7 @@ class BalootMultiAgentEnv(gym.Env):
         "last_trick": (128,),
         "declared_sets": (16,),
         "revealed_sets": (20,),
-        "bidding_history": (60,),
+        "bidding_history": (BIDDING_HISTORY_FEATURES,),
         "action_mask": (43,),
     }
 
@@ -213,13 +215,16 @@ class BalootMultiAgentEnv(gym.Env):
 
     def _bidding_history_features(self, observer):
         features = []
-        for item in self.bidding_history[-self.NUM_PLAYERS:]:
+        entries = list(self.bidding_history[-self.BIDDING_HISTORY_LENGTH:])
+        while len(entries) < self.BIDDING_HISTORY_LENGTH:
+            entries.append((None, None))
+        for item in entries:
             actor, action = item
-            features.append(self._relative_player_one_hot(actor, observer))
+            actor_feat = (np.zeros(self.NUM_PLAYERS, dtype=np.float32)
+                          if actor is None
+                          else self._relative_player_one_hot(actor, observer))
+            features.append(actor_feat)
             features.append(self._bid_action_one_hot(action))
-        while len(features) < self.NUM_PLAYERS * 2:
-            features.append(np.zeros(self.NUM_PLAYERS, dtype=np.float32))
-            features.append(np.zeros(len(BID_ACTIONS), dtype=np.float32))
         return np.concatenate(features).astype(np.float32)
 
     def _validate_observation(self, obs):
@@ -284,9 +289,8 @@ class BalootMultiAgentEnv(gym.Env):
         own_knowledge = self.card_ownership[:, owner_order, ag].astype(np.float32)
         own_knowledge_flat = own_knowledge.flatten()
 
-        current_order = self.trick_order if self.trick_order is not None else [
-            (self.trick_leader + i) % self.NUM_PLAYERS for i in range(self.NUM_PLAYERS)
-        ]
+        current_order = (self.trick_order if self.trick_order is not None
+                         else self._relative_player_order(ag))
         trick_feat = self._cards_by_player_order(self.current_trick, current_order)
         last_trick_feat = self._cards_by_player_order(self.last_trick, self.last_trick_order)
 

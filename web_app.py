@@ -153,12 +153,10 @@ def get_state():
         state["trick_history"] = trick_history
 
     valid_actions = []
-    valid_indices = (
-        {int(idx) for idx in np.where(game_state["obs_dict"]['action_mask'] == 1)[0]}
-        if state["is_human_turn"]
-        else set()
-    )
+    valid_indices = set()
     if state["is_human_turn"]:
+        mask = game_state["obs_dict"]['action_mask']
+        valid_indices = set(map(int, np.where(mask == 1)[0]))
         for idx in valid_indices:
             valid_actions.append({"index": int(idx), "text": translate_action(idx)})
     state["valid_actions"] = valid_actions
@@ -168,9 +166,10 @@ def get_state():
     state["hand"] = []
     for card in sorted_hand:
         action_index = int(deck.index(card))
+        is_playable_card = action_index in valid_indices
         state["hand"].append({
             "text": translate_action(action_index),
-            "action_index": action_index if action_index in valid_indices else None
+            "action_index": action_index if is_playable_card else None
         })
     
     return jsonify(state)

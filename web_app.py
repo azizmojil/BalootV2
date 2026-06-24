@@ -107,6 +107,7 @@ def get_state():
         "dealer": get_relative_name(env.dealer, human_id),
         "trick_leader": get_relative_name(getattr(env, 'trick_leader', None), human_id),
         "done": game_state["done"],
+        "is_human_turn": not game_state["done"] and env.current_agent == human_id,
         "logs": game_state["logs"][-15:],
     }
     
@@ -151,17 +152,24 @@ def get_state():
             })
         state["trick_history"] = trick_history
 
-    hand = env.hands[human_id]
-    sorted_hand = sort_hand_canonical(hand)
-    state["hand"] = [translate_action(deck.index(c)) for c in sorted_hand]
-    
     valid_actions = []
-    if not game_state["done"] and env.current_agent == human_id:
+    valid_indices = set()
+    if state["is_human_turn"]:
         mask = game_state["obs_dict"]['action_mask']
-        valid_indices = np.where(mask == 1)[0]
+        valid_indices = {int(idx) for idx in np.where(mask == 1)[0]}
         for idx in valid_indices:
             valid_actions.append({"index": int(idx), "text": translate_action(idx)})
     state["valid_actions"] = valid_actions
+
+    hand = env.hands[human_id]
+    sorted_hand = sort_hand_canonical(hand)
+    state["hand"] = []
+    for card in sorted_hand:
+        action_index = int(deck.index(card))
+        state["hand"].append({
+            "text": translate_action(action_index),
+            "action_index": action_index if action_index in valid_indices else None
+        })
     
     return jsonify(state)
 

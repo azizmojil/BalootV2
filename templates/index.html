@@ -273,10 +273,6 @@
             return String(str || '').replace(/[&<>"'`]/g, char => HTML_ESCAPE_CHARS[char]);
         }
 
-        function normalizeActionText(str) {
-            return String(str || '').trim().toLowerCase();
-        }
-
         function renderPixelCard(str, extraClasses = '') {
             const cardText = str || '';
             const safeCardText = escapeHtml(cardText);
@@ -339,10 +335,7 @@
                 const res = await fetch(`/state${advanceAi ? '?advance_ai=1' : ''}`);
                 if (!res.ok) return;
                 const state = await res.json();
-                const isHumanTurn = state.valid_actions.length > 0 && !state.done;
-                const playableActionsByText = isHumanTurn && state.phase !== 'bidding'
-                    ? new Map(state.valid_actions.map(act => [normalizeActionText(act.text), act.index]))
-                    : new Map();
+                const isHumanTurn = state.is_human_turn && !state.done;
                 
                 document.getElementById('game-info').classList.remove('hidden');
                 
@@ -413,15 +406,16 @@
                 const handContainer = document.getElementById('player-hand');
                 handContainer.innerHTML = '';
                 const fanSpreadBase = Math.max(state.hand.length - 1, 1);
-                state.hand.forEach((card, index) => {
+                state.hand.forEach((handCard, index) => {
                     const div = document.createElement('div');
+                    const card = handCard.text || handCard;
                     const safeCard = escapeHtml(card);
                     // Normalize each card position around center to fan symmetrically from left to right.
                     const spread = state.hand.length > 1 ? (index / fanSpreadBase - FAN_CENTER_OFFSET) : 0;
                     const rotation = spread * FAN_ROTATION_DEGREES;
                     const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
-                    const actionIndex = playableActionsByText.get(normalizeActionText(card));
-                    const canPlayCard = actionIndex !== undefined;
+                    const actionIndex = handCard.action_index;
+                    const canPlayCard = isHumanTurn && state.phase !== 'bidding' && actionIndex !== null && actionIndex !== undefined;
                     div.className = `playing-card ${getCardColorClass(card)} hand-card ${canPlayCard ? 'playable-card' : ''}`;
                     div.dataset.card = safeCard;
                     div.style.setProperty('--fan-rotation', `${rotation}deg`);

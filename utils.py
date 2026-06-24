@@ -51,7 +51,7 @@ def get_global_state(env):
         player_one_hot(env.current_agent),
         player_one_hot(env.trick_leader),
         player_one_hot(env.buyer, include_none=True),
-        player_one_hot(getattr(env, "last_doubler", None), include_none=True),
+        player_one_hot(env.last_doubler, include_none=True),
     ]).astype(np.float32)
 
     game_context = np.concatenate([

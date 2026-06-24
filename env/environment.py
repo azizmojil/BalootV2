@@ -213,7 +213,7 @@ class BalootMultiAgentEnv(gym.Env):
     def _bidding_history_features(self, observer):
         features = []
         entries = list(self.bidding_history[-self.BIDDING_HISTORY_LENGTH:])
-        # Older bids stay first and empty future slots stay zero-padded at the end.
+        # Older bids remain first and empty future slots stay zero-padded at the end.
         while len(entries) < self.BIDDING_HISTORY_LENGTH:
             entries.append((None, None))
         for item in entries:
@@ -230,7 +230,7 @@ class BalootMultiAgentEnv(gym.Env):
         expected_keys = tuple(self.OBSERVATION_SCHEMA.keys())
         actual_keys = tuple(obs.keys())
         if actual_keys != expected_keys:
-            raise ValueError("Observation keys are out of schema order; flatten_obs depends on stable key order")
+            raise ValueError(f"Observation keys are out of schema order; expected {expected_keys}, got {actual_keys}")
         for key, shape in self.OBSERVATION_SCHEMA.items():
             arr = obs[key]
             if arr.shape != shape:

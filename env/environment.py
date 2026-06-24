@@ -36,6 +36,9 @@ class BalootMultiAgentEnv(gym.Env):
         self.round_count = 0
         self.match_over = False
         self.dealer = self._rng.randint(0, 3)
+        self.last_doubler = None
+        self.trick_order = None
+        self.last_trick_order = None
         self.action_space = spaces.Discrete(43)
         spaces_dict = {
             name: spaces.Box(0.0, 1.0, shape=shape, dtype=np.float32)
@@ -247,6 +250,8 @@ class BalootMultiAgentEnv(gym.Env):
                 raise ValueError(f"Observation '{key}' contains values outside [0, 1]")
 
     def get_observation(self):
+        if not hasattr(self, "hands"):
+            raise RuntimeError("Call reset() before requesting an observation.")
         ag = self.current_agent
 
         player_roles = np.concatenate([

@@ -51,7 +51,7 @@ def one_hot_card(card):
         idx = canonical_deck.index(card)
         vec = np.zeros(32, dtype=np.float32)
         vec[idx] = 1.0
-    except Exception:
+    except ValueError:
         vec = np.zeros(32, dtype=np.float32)
     return vec
 

@@ -1,6 +1,7 @@
 import gymnasium as gym
 from gymnasium import spaces
 import random
+import numpy as np
 from env.utils import *
 from env.rewards import calculate_trick_reward, calculate_end_of_round_reward, calculate_end_of_game_reward, calculate_bidding_reward, REWARD_ALL_PASS_PENALTY
 

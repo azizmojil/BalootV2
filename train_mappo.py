@@ -1,12 +1,18 @@
 import sys
 import os
+import warnings
+
+# Suppress TensorFlow C++ logs (must be set before importing tensorflow)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# Suppress Python UserWarnings (like the Keras LeakyReLU warning)
+warnings.filterwarnings("ignore")
+
 import datetime
 import argparse
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from env.environment import BalootMultiAgentEnv

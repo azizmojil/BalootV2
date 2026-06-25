@@ -45,15 +45,17 @@ class MAPPOAgent:
     @tf.function
     def _forward_pass(self, local_obs_t, global_state_t, mask_t):
         logits, value = self.model([local_obs_t, global_state_t], training=False)
-        value = tf.squeeze(value, axis=0)
+        value = tf.squeeze(value, axis=1)
         
         very_negative = -1e10 * tf.ones_like(logits)
         masked_logits = tf.where(mask_t > 0, logits, very_negative)
         masked_log_probs = tf.nn.log_softmax(masked_logits, axis=1)
 
         action_tensor = tf.random.categorical(masked_log_probs, num_samples=1)
-        action = tf.squeeze(action_tensor)
-        log_prob = masked_log_probs[0, action]
+        action = tf.squeeze(action_tensor, axis=1)
+        
+        action_onehot = tf.one_hot(action, self.act_dim)
+        log_prob = tf.reduce_sum(action_onehot * masked_log_probs, axis=1)
 
         return action, log_prob, value
 
@@ -71,7 +73,15 @@ class MAPPOAgent:
         
         action_t, log_prob_t, value_t = self._forward_pass(local_obs_t, global_state_t, mask_t)
 
-        return int(action_t.numpy()), log_prob_t, value_t
+        return int(action_t[0].numpy()), log_prob_t[0], value_t[0]
+
+    def select_actions(self, local_obs_batch, global_state_batch, mask_batch):
+        local_obs_t = tf.convert_to_tensor(local_obs_batch, dtype=tf.float32)
+        global_state_t = tf.convert_to_tensor(global_state_batch, dtype=tf.float32)
+        mask_t = tf.convert_to_tensor(mask_batch, dtype=tf.float32)
+        
+        actions_t, log_probs_t, values_t = self._forward_pass(local_obs_t, global_state_t, mask_t)
+        return actions_t.numpy(), log_probs_t.numpy(), values_t.numpy()
 
     def compute_advantages_and_returns(self, rewards, dones, values, last_value):
         """
@@ -94,13 +104,13 @@ class MAPPOAgent:
     @tf.function
     def _value_forward_pass(self, local_obs_t, global_state_t):
         _, value = self.model([local_obs_t, global_state_t], training=False)
-        return tf.squeeze(value, axis=0)
+        return tf.squeeze(value, axis=1)
 
     def get_value_for_single_obs(self, local_obs, global_state):
         local_obs_t = tf.convert_to_tensor(local_obs[None, :], dtype=tf.float32)
         global_state_t = tf.convert_to_tensor(global_state[None, :], dtype=tf.float32)
         value_t = self._value_forward_pass(local_obs_t, global_state_t)
-        return value_t.numpy()
+        return value_t[0].numpy()
     
     def update(self, memory):
         local_states = np.array(memory["local_states"], dtype=np.float32)

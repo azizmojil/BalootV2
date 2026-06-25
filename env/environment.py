@@ -743,8 +743,8 @@ class BalootMultiAgentEnv(gym.Env):
     def _set_resolution_key(self, set_info):
         return (
             self._set_category_priority(set_info),
-            self._set_resolution_value(set_info),
             SET_PRIORITY[set_info["type"]],
+            self._set_resolution_value(set_info),
         )
 
     def _declare_sets_for_player(self, player):

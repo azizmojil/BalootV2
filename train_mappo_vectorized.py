@@ -160,6 +160,9 @@ def get_learning_rate(ep):
     return config["start_lr"] + frac * (config["end_lr"] - config["start_lr"])
 
 if __name__ == "__main__":
+    import multiprocessing as mp
+    mp.set_start_method('spawn', force=True)
+    
     parser = argparse.ArgumentParser(description="Train MAPPO Agent for Baloot")
     parser.add_argument("--resume", type=str, default=None)
     args = parser.parse_args()

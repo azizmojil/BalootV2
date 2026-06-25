@@ -822,10 +822,7 @@ class BalootMultiAgentEnv(gym.Env):
                 continue
             best_set = max(
                 player_sets,
-                key=lambda set_info: (
-                    self._set_resolution_value(set_info),
-                    SET_PRIORITY[set_info["type"]],
-                ),
+                key=self._set_resolution_key,
             )
             self._record_set_resolution_reveal(player, best_set)
 

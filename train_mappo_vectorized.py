@@ -250,10 +250,10 @@ if __name__ == "__main__":
         })
 
         if update_count % 5 == 0:
-            agent.model.save_weights(os.path.join(model_dir, f"mappo_update_{update_count}.h5"))
+            agent.model.save_weights(os.path.join(model_dir, f"mappo_update_{update_count}.weights.h5"))
 
     pbar.close()
 
-    agent.model.save_weights(os.path.join(model_dir, "final_mappo.h5"))
+    agent.model.save_weights(os.path.join(model_dir, "final_mappo.weights.h5"))
     executor.shutdown()
     print("Training complete.")

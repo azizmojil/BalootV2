@@ -732,7 +732,10 @@ class BalootMultiAgentEnv(gym.Env):
     def _set_category_priority(self, set_info):
         category = self._set_category(set_info["type"])
         if category not in self.SET_CATEGORY_PRIORITY:
-            raise ValueError(f"Unknown set category '{category}' from set type '{set_info['type']}'")
+            raise ValueError(
+                f"Unknown set category '{category}' from set type '{set_info['type']}'. "
+                f"Valid categories: {list(self.SET_CATEGORY_PRIORITY.keys())}"
+            )
         return self.SET_CATEGORY_PRIORITY[category]
 
     def _set_resolution_value(self, set_info):
@@ -755,7 +758,10 @@ class BalootMultiAgentEnv(gym.Env):
         for set_info in self.declared_sets_info[player]:
             set_index = set_type_to_index.get(set_info["type"])
             if set_index is None:
-                raise ValueError(f"Unknown set type: {set_info['type']}")
+                raise ValueError(
+                    f"Unknown set type for player {player}: {set_info['type']}. "
+                    f"Valid types: {list(set_type_to_index.keys())}"
+                )
             self.declared_sets[player, set_index] += 1.0
         self.set_declaration_done[player] = True
 

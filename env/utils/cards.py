@@ -45,6 +45,16 @@ def team(player):
     return player % 2
 
 
+def relative_player_index(player, observer):
+    if player is None:
+        return None
+    return (player - observer) % 4
+
+
+def relative_player_order(observer, num_players=4):
+    return [(observer + offset) % num_players for offset in range(num_players)]
+
+
 def one_hot_card(card):
     canonical_deck = create_deck()
     try:
@@ -114,6 +124,8 @@ __all__ = [
     "get_canonical_hand",
     "card_value",
     "team",
+    "relative_player_index",
+    "relative_player_order",
     "one_hot_card",
     "one_hot_index",
     "pad_array",

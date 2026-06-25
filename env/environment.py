@@ -10,31 +10,12 @@ class BalootMultiAgentEnv(gym.Env):
     """Baloot environment with explicit per-round bidding and trick state."""
 
     metadata = {"render_modes": ["human"]}
-    NUM_PLAYERS = 4
-    BIDDING_HISTORY_LENGTH = NUM_PLAYERS
-    BIDDING_HISTORY_FEATURES = BIDDING_HISTORY_LENGTH * (NUM_PLAYERS + len(BID_ACTIONS))
+    NUM_PLAYERS = OBSERVATION_NUM_PLAYERS
+    BIDDING_HISTORY_LENGTH = OBSERVATION_BIDDING_HISTORY_LENGTH
+    BIDDING_HISTORY_FEATURES = OBSERVATION_BIDDING_HISTORY_FEATURES
     INFERENCE_EPSILON = 1e-3
     SET_INFERENCE_STRENGTH = 2.0
-    SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
-    SET_CATEGORY_PRIORITY = {"Sera": 1, "Khamseen": 2, "Mia": 3, "Arbamia": 4}
-    OBSERVATION_SCHEMA = {
-        # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
-        "player_roles": (22,),
-        # Phase, game type, trump, doubling, initial bid, and final bid one-hots.
-        "game_context": (39,),
-        "score_context": (10,),
-        "faceup_card": (32,),
-        "own_hand": (32,),
-        "played_cards": (32,),
-        "unknown_cards": (32,),
-        "cards_ownership": (128,),
-        "trick": (128,),
-        "last_trick": (128,),
-        "declared_sets": (16,),
-        "revealed_sets": (20,),
-        "bidding_history": (BIDDING_HISTORY_FEATURES,),
-        "action_mask": (43,),
-    }
+    OBSERVATION_SCHEMA = OBSERVATION_SCHEMA
 
     def __init__(self):
         super().__init__()
@@ -205,13 +186,8 @@ class BalootMultiAgentEnv(gym.Env):
                     prior_sum = total_hidden_slots
                 self.card_ownership[card_idx, :, observer] = prior / prior_sum
 
-    def _relative_player_index(self, player, observer):
-        if player is None:
-            return None
-        return (player - observer) % 4
-
     def _relative_player_one_hot(self, player, observer, include_none=False):
-        rel = self._relative_player_index(player, observer)
+        rel = relative_player_index(player, observer)
         if include_none:
             return one_hot_index(self.NUM_PLAYERS if rel is None else rel, self.NUM_PLAYERS + 1)
         return one_hot_index(rel, self.NUM_PLAYERS)
@@ -219,11 +195,8 @@ class BalootMultiAgentEnv(gym.Env):
     def _default_player_order(self):
         return list(range(self.NUM_PLAYERS))
 
-    def _relative_player_order(self, observer):
-        return [(observer + offset) % self.NUM_PLAYERS for offset in range(self.NUM_PLAYERS)]
-
     def _relative_rows(self, values, observer):
-        rows = self._relative_player_order(observer)
+        rows = relative_player_order(observer, self.NUM_PLAYERS)
         return values[rows]
 
     def _bid_action_one_hot(self, action, include_none=False):
@@ -267,23 +240,7 @@ class BalootMultiAgentEnv(gym.Env):
         return np.concatenate(features).astype(np.float32)
 
     def _validate_observation(self, obs):
-        expected_keys = tuple(self.OBSERVATION_SCHEMA.keys())
-        actual_keys = tuple(obs.keys())
-        if actual_keys != expected_keys:
-            raise ValueError(f"Observation keys do not match schema; expected {expected_keys}, got {actual_keys}")
-        for key, shape in self.OBSERVATION_SCHEMA.items():
-            arr = obs[key]
-            if arr.shape != shape:
-                raise ValueError(f"Observation '{key}' has shape {arr.shape}, expected {shape}")
-            if arr.dtype != np.float32:
-                raise ValueError(f"Observation '{key}' has dtype {arr.dtype}, expected float32")
-            if not np.all(np.isfinite(arr)):
-                raise ValueError(f"Observation '{key}' contains non-finite values")
-            if np.any(arr < -self.INFERENCE_EPSILON) or np.any(arr > 1.0 + self.INFERENCE_EPSILON):
-                raise ValueError(
-                    f"Observation '{key}' contains values outside [0, 1]: "
-                    f"min={arr.min()}, max={arr.max()}"
-                )
+        validate_observation(obs, self.OBSERVATION_SCHEMA, self.INFERENCE_EPSILON)
 
     def get_observation(self):
         if not hasattr(self, "hands"):
@@ -330,7 +287,7 @@ class BalootMultiAgentEnv(gym.Env):
         played_cards = (1.0 - self.remaining_cards).astype(np.float32)
         unknown_cards = np.clip(self.remaining_cards - own_hand, 0.0, 1.0).astype(np.float32)
 
-        relative_owner_order = self._relative_player_order(ag)
+        relative_owner_order = relative_player_order(ag, self.NUM_PLAYERS)
         own_knowledge = self.card_ownership[:, relative_owner_order, ag].astype(np.float32)
         own_knowledge_flat = own_knowledge.flatten()
 
@@ -650,8 +607,8 @@ class BalootMultiAgentEnv(gym.Env):
         set_bonus0 = (team_set_bonus[0] + team_balot_bonus[0]) // divisor
         set_bonus1 = (team_set_bonus[1] + team_balot_bonus[1]) // divisor
 
-        base0 = self._convert_bant(self.team_bant[0])
-        base1 = self._convert_bant(self.team_bant[1])
+        base0 = convert_bant(self.team_bant[0], self.game_type)
+        base1 = convert_bant(self.team_bant[1], self.game_type)
         total = [base0 + set_bonus0, base1 + set_bonus1]
 
         if self.game_type == "Hukoom" and self.team_bant[buyer_team] % 10 == 6:
@@ -690,27 +647,6 @@ class BalootMultiAgentEnv(gym.Env):
 
         return rewards
 
-    def _convert_bant(self, bant):
-        if bant <= 0:
-            return 0
-        if self.game_type == "Hukoom":
-            rem = bant % 10
-            tens = bant // 10
-            rounded = tens * 10 if rem == 5 else (tens *
-                                                  10 if (bant - tens * 10) <= ((tens + 1) * 10 - bant)
-                                                  else (tens + 1) * 10)
-            return rounded // 10
-        else:
-            rem = bant % 10
-            tens = bant // 10
-            if rem == 5:
-                return tens * 2 + 1
-            else:
-                lower = tens * 10
-                upper = lower + 10
-                rounded = lower if (bant - lower) <= (upper - bant) else upper
-                return (rounded // 10) * 2
-
     def _update_cumulative_scores(self):
         self.cumulative_scores[0] += self.final_scores[0]
         self.cumulative_scores[1] += self.final_scores[1]
@@ -720,35 +656,6 @@ class BalootMultiAgentEnv(gym.Env):
 
     def _resolve_sets(self, declaring_agent=None):
         self._resolve_sets_by_full_information()
-
-    def _set_category(self, set_type):
-        if set_type in ("Mia_c", "Mia_s"):
-            return "Mia"
-        return set_type
-
-    def _set_category_priority(self, set_info):
-        category = self._set_category(set_info["type"])
-        if category not in self.SET_CATEGORY_PRIORITY:
-            raise ValueError(
-                f"Unknown set category '{category}' from set type '{set_info['type']}'. "
-                f"Valid categories: {list(self.SET_CATEGORY_PRIORITY.keys())}"
-            )
-        return self.SET_CATEGORY_PRIORITY[category]
-
-    def _set_resolution_value(self, set_info):
-        if not set_info["cards"]:
-            raise ValueError(f"Set {set_info['type']} has no cards")
-        return max(card_value(card) for card in set_info["cards"])
-
-    def _set_resolution_key(self, set_info):
-        return (
-            self._set_category_priority(set_info),
-            SET_PRIORITY[set_info["type"]],
-            self._set_resolution_value(set_info),
-        )
-
-    def _set_value_label(self, value):
-        return {11: 'J', 12: 'Q', 13: 'K', 14: 'A'}.get(value, str(value))
 
     def _declare_sets_for_player(self, player):
         if self.set_declaration_done[player]:
@@ -783,7 +690,7 @@ class BalootMultiAgentEnv(gym.Env):
         top_priority = None
         for player, sets in enumerate(self.declared_sets_info):
             for set_info in sets:
-                priority = self._set_category_priority(set_info)
+                priority = set_category_priority(set_info)
                 if top_priority is None or priority > top_priority:
                     candidates = [(player, set_info)]
                     top_priority = priority
@@ -804,26 +711,26 @@ class BalootMultiAgentEnv(gym.Env):
     def _record_set_resolution_reveal(self, player, set_info):
         canonical = create_deck()
         self._reveal_declared_set(player, set_info, canonical)
-        value = self._set_resolution_value(set_info)
-        category = self._set_category(set_info["type"])
+        value = set_resolution_value(set_info)
+        category = set_category(set_info["type"])
         if self.set_resolution_reveals:
             best_revealed = max(self.set_resolution_reveals.values(), key=lambda reveal: reveal["key"])
-            if self._set_resolution_key(set_info) > best_revealed["key"]:
-                self.resolution_logs.append(f"Player {player} replies with {self._set_value_label(value)}.")
+            if set_resolution_key(set_info) > best_revealed["key"]:
+                self.resolution_logs.append(f"Player {player} replies with {set_value_label(value)}.")
             else:
                 self.resolution_logs.append(
-                    f"Player {player} cannot beat {self._set_value_label(best_revealed['value'])}."
+                    f"Player {player} cannot beat {set_value_label(best_revealed['value'])}."
                 )
         else:
             self.resolution_logs.append(
-                f"Player {player} asks with {self._set_value_label(value)} for {category}."
+                f"Player {player} asks with {set_value_label(value)} for {category}."
             )
         self.set_resolution_reveals[player] = {
             "type": set_info["type"],
             "category": category,
             "value": value,
             "priority": SET_PRIORITY[set_info["type"]],
-            "key": self._set_resolution_key(set_info),
+            "key": set_resolution_key(set_info),
         }
 
     def _revealed_set_key(self, set_info):
@@ -867,7 +774,7 @@ class BalootMultiAgentEnv(gym.Env):
                 continue
             best_set = max(
                 player_sets,
-                key=self._set_resolution_key,
+                key=set_resolution_key,
             )
             self._record_set_resolution_reveal(player, best_set)
 
@@ -881,7 +788,7 @@ class BalootMultiAgentEnv(gym.Env):
                 if candidate_player not in self.set_resolution_reveals
             ]
             best_unrevealed_key = (
-                max(self._set_resolution_key(set_info) for set_info in unrevealed_candidates)
+                max(set_resolution_key(set_info) for set_info in unrevealed_candidates)
                 if unrevealed_candidates else None
             )
             if best_unrevealed_key is None or best_revealed["key"] > best_unrevealed_key:
@@ -902,8 +809,8 @@ class BalootMultiAgentEnv(gym.Env):
                     best_set, best_player = set_info, player
                     continue
 
-                current_key = self._set_resolution_key(set_info)
-                best_key = self._set_resolution_key(best_set)
+                current_key = set_resolution_key(set_info)
+                best_key = set_resolution_key(best_set)
                 if current_key > best_key:
                     best_set, best_player = set_info, player
 
@@ -932,7 +839,7 @@ class BalootMultiAgentEnv(gym.Env):
         }
 
         hidden_types = []
-        for set_type in self.SET_TYPE_BY_INDEX:
+        for set_type in SET_TYPE_BY_INDEX:
             hidden_types.extend([set_type] * hidden_counts[set_type])
         return hidden_types
 

@@ -7,7 +7,16 @@ def compute_bidding_order(dealer, num_agents=4):
     return [(dealer + i) % num_agents for i in range(1, num_agents + 1)]
 
 
-def initial_bidding_actions(current_agent, dealer, bidding_round, face_up):
+def can_takweesh(agent_hand, current_bid_type=None, trump_suit=None):
+    for suit, rank in agent_hand:
+        if rank not in ('7', '8', '9'):
+            return False
+        if current_bid_type == "Hukoom" and rank == '9' and suit == trump_suit:
+            return False
+    return True
+
+
+def initial_bidding_actions(current_agent, dealer, bidding_round, face_up, agent_hand):
     suit_to_action = {'♠': 34, '♥': 35, '♦': 36, '♣': 37}
     revealed = face_up[0]
     left_of_dealer = (dealer - 1) % 4
@@ -22,15 +31,18 @@ def initial_bidding_actions(current_agent, dealer, bidding_round, face_up):
         if current_agent in (dealer, left_of_dealer):
             allowed.append(38)
 
-    mask = np.zeros(43, dtype=np.float32)
+    if can_takweesh(agent_hand):
+        allowed.append(43)
+
+    mask = np.zeros(44, dtype=np.float32)
     for a in allowed:
         mask[a] = 1
     return mask
 
 
-def allowed_overbids(buyer, dealer, bid_type, doubling_status, bidding_round, agent, face_up):
+def allowed_overbids(buyer, dealer, bid_type, doubling_status, bidding_round, agent, face_up, agent_hand, trump_suit):
     if doubling_status is not None:
-        mask = np.zeros(43, dtype=np.float32)
+        mask = np.zeros(44, dtype=np.float32)
         mask[32] = 1
         return mask
 
@@ -63,14 +75,17 @@ def allowed_overbids(buyer, dealer, bid_type, doubling_status, bidding_round, ag
                     if act != suit_to_action[revealed]:
                         allowed.add(act)
 
-    mask = np.zeros(43, dtype=np.float32)
+    if can_takweesh(agent_hand, current_bid_type=bid_type, trump_suit=trump_suit):
+        allowed.add(43)
+
+    mask = np.zeros(44, dtype=np.float32)
     for a in allowed:
         mask[a] = 1
     return mask
 
 
 def allowed_doubling_action(buy_type, buyer, agent, cumulative_scores, current_doubling_state, last_doubler):
-    mask = np.zeros(43, dtype=np.float32)
+    mask = np.zeros(44, dtype=np.float32)
     mask[32] = 1
 
     buyer_team = team(buyer)

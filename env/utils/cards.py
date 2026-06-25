@@ -11,7 +11,7 @@ def create_deck():
 
 
 def full_card_mask(mask32):
-    full = np.zeros(43, dtype=np.float32)
+    full = np.zeros(44, dtype=np.float32)
     full[:len(mask32)] = mask32
     return full
 
@@ -112,7 +112,8 @@ def translate_action(action):
                39: "Double",
                40: "Three",
                41: "Four",
-               42: "Gahwa"}
+               42: "Gahwa",
+               43: "Takweesh"}
     return mapping.get(action, f"Unknown Action {action}")
 
 

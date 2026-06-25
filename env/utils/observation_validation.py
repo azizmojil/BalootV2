@@ -12,7 +12,7 @@ OBSERVATION_SCHEMA = {
     # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
     "player_roles": (22,),
     # Phase, game type, trump, doubling, initial bid, and final bid one-hots.
-    "game_context": (39,),
+    "game_context": (41,),
     "score_context": (10,),
     "faceup_card": (32,),
     "own_hand": (32,),
@@ -24,7 +24,7 @@ OBSERVATION_SCHEMA = {
     "declared_sets": (16,),
     "revealed_sets": (20,),
     "bidding_history": (OBSERVATION_BIDDING_HISTORY_FEATURES,),
-    "action_mask": (43,),
+    "action_mask": (44,),
 }
 
 

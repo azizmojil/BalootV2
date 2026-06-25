@@ -28,7 +28,8 @@ SUN_ACTION = 33
 PARTNER_SUN_ACTION = 38
 BIDDING_SUIT_ACTIONS = {34: '♠', 35: '♥', 36: '♦', 37: '♣'}
 BIDDING_BUY_ACTIONS = (SUN_ACTION, PARTNER_SUN_ACTION, *BIDDING_SUIT_ACTIONS.keys())
-ALL_REWARDED_BIDDING_ACTIONS = (PASS_ACTION, *BIDDING_BUY_ACTIONS)
+TAKWEESH_ACTION = 43
+ALL_REWARDED_BIDDING_ACTIONS = (PASS_ACTION, TAKWEESH_ACTION, *BIDDING_BUY_ACTIONS)
 
 
 def get_card_points(card, game_type, trump_suit):
@@ -220,6 +221,9 @@ def calculate_bidding_reward(env, agent_id, action):
 
     if action in BIDDING_SUIT_ACTIONS:
         return _reward_for_hukoom_bid(strengths, BIDDING_SUIT_ACTIONS[action])
+
+    if action == TAKWEESH_ACTION:
+        return 0.12
 
     return 0.0
 

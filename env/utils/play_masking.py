@@ -32,10 +32,14 @@ def trumping_rules(agent_hand, current_trick, trump_suit, agent_index):
                 highest, owner = c, idx
 
     if highest is None:
-        return full_card_mask(trump32) if trump32.sum() > 0 else full_card_mask(hand32)
+        if trump32.sum() > 0:
+            return full_card_mask(trump32)
+        return full_card_mask(hand32)
 
     if owner is not None and team(owner) == team(agent_index):
-        return full_card_mask(trump32) if trump32.sum() > 0 else full_card_mask(hand32)
+        if trump32.sum() > 0:
+            return full_card_mask(trump32)
+        return full_card_mask(hand32)
 
     beat32 = np.array([1.0 if (c in agent_hand
                                and c[0] == trump_suit
@@ -44,7 +48,11 @@ def trumping_rules(agent_hand, current_trick, trump_suit, agent_index):
 
     if beat32.sum() > 0:
         return full_card_mask(beat32)
-    return full_card_mask(trump32) if trump32.sum() > 0 else full_card_mask(hand32)
+        
+    if trump32.sum() > 0:
+        return full_card_mask(trump32)
+        
+    return full_card_mask(hand32)
 
 
 def non_trump_lead_mask(agent_hand, current_trick, trick_suit, trump_suit, agent_index):
@@ -96,15 +104,15 @@ def get_full_play_mask_hukoom(agent_hand, current_trick, agent, trick_suit, trum
         hand_mask_32 = np.array([1.0 if card in agent_hand else 0.0 for card in canonical_deck], dtype=np.float32)
         return full_card_mask(hand_mask_32)
 
+    has_lead_suit = any(card[0] == trick_suit for card in agent_hand)
+
     if trick_suit == trump_suit:
         return trumping_rules(agent_hand,
                               current_trick,
                               trump_suit,
                               agent)
 
-    has_lead_suit = any(card[0] == trick_suit for card in agent_hand)
     if has_lead_suit:
-        canonical_deck = create_deck()
         follow_mask_32 = np.array([
             1.0 if (card in agent_hand and card[0] == trick_suit) else 0.0
             for card in canonical_deck

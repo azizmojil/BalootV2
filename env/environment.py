@@ -30,7 +30,7 @@ class BalootMultiAgentEnv(gym.Env):
         self.trick_order = None
         # Player order for cards in last_trick; None until a trick has completed.
         self.last_trick_order = None
-        self.action_space = spaces.Discrete(43)
+        self.action_space = spaces.Discrete(44)
         spaces_dict = {
             name: spaces.Box(0.0, 1.0, shape=shape, dtype=np.float32)
             for name, shape in self.OBSERVATION_SCHEMA.items()
@@ -52,6 +52,8 @@ class BalootMultiAgentEnv(gym.Env):
 
     def _reset_round(self):
         self.round_count += 1
+        if self.round_count > 1:
+            self.dealer = (self.dealer + 1) % 4
         self.phase = 'bidding'
         self.bidding_round = 1
         self.pass_count = 0
@@ -179,7 +181,8 @@ class BalootMultiAgentEnv(gym.Env):
                 if np.isclose(total_hidden_slots, 0.0, rtol=0, atol=self.INFERENCE_EPSILON):
                     continue
 
-                prior = self.card_ownership[card_idx, :, observer] * hidden_slots
+                mask = (self.card_ownership[card_idx, :, observer] > 0).astype(np.float32)
+                prior = mask * hidden_slots
                 prior_sum = prior.sum()
                 if prior_sum <= 0:
                     prior = hidden_slots
@@ -323,7 +326,8 @@ class BalootMultiAgentEnv(gym.Env):
             return initial_bidding_actions(current_agent=self.current_agent,
                                            dealer=self.dealer,
                                            bidding_round=self.bidding_round,
-                                           face_up=self.face_up)
+                                           face_up=self.face_up,
+                                           agent_hand=self.hands[self.current_agent])
 
         overbid_mask = allowed_overbids(buyer=self.buyer,
                                         dealer=self.dealer,
@@ -331,7 +335,9 @@ class BalootMultiAgentEnv(gym.Env):
                                         doubling_status=self.doubling_state,
                                         bidding_round=self.bidding_round,
                                         agent=self.current_agent,
-                                        face_up=self.face_up)
+                                        face_up=self.face_up,
+                                        agent_hand=self.hands[self.current_agent],
+                                        trump_suit=self.trump_suit)
 
         doubling_mask = allowed_doubling_action(buy_type=self.game_type,
                                                 buyer=self.buyer,
@@ -359,6 +365,11 @@ class BalootMultiAgentEnv(gym.Env):
     def _bidding_step(self, agent, action):
         self.bidding_history.append((agent, action))
         action_to_suit = {34: '♠', 35: '♥', 36: '♦', 37: '♣'}
+        
+        if action == 43:
+            self.takweesh = True
+            return
+            
         if self.buyer is None:
             if action == 32:
                 self.pass_count += 1
@@ -542,7 +553,13 @@ class BalootMultiAgentEnv(gym.Env):
             bidding_reward = calculate_bidding_reward(self, acting_agent, action)
             self._bidding_step(acting_agent, action)
 
-            if self.pass_count >= 8:
+            if getattr(self, "takweesh", False):
+                rewards = {f"player_{i}": 0.0 for i in range(4)}
+                rewards[f"player_{acting_agent}"] = bidding_reward
+                dones = {f"player_{i}": self.match_over for i in range(4)}
+                self._reset_round()
+                self.takweesh = False
+            elif self.pass_count >= 8:
                 rewards = {f"player_{i}": REWARD_ALL_PASS_PENALTY for i in range(4)}
                 dones = {f"player_{i}": self.match_over for i in range(4)}
                 self._reset_round()

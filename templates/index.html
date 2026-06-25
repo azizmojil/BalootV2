@@ -8,71 +8,147 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --trick-card-left-near-horizontal: 84deg;
-            --trick-card-right-near-horizontal: -84deg;
-            --card-corner-font-size: 0.75rem;
-            --card-rank-font-size: 1.6rem;
-            --card-rank-letter-spacing: -0.08em;
-            --hand-card-overlap: -22px;
-            --hand-card-hover-lift: 24px;
-            --hand-card-hover-scale: 1.06;
+            --card-w: 64px;
+            --card-h: 92px;
+            --mini-card-w: 34px;
+            --mini-card-h: 48px;
+            --hand-card-overlap: -20px;
+            --hand-card-hover-lift: 22px;
+            --hand-card-hover-scale: 1.08;
+            --fan-max-deg: 32;
+            --fan-max-offset: 22;
         }
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        .card { 
-            transition: all 0.2s ease; 
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(30,41,59,0.8);
-            backdrop-filter: blur(10px);
-        }
-        .card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        .bg-gradient { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); }
+
+        /* ── Card base ── */
         .playing-card {
             position: relative;
-            width: 78px;
-            height: 110px;
+            width: var(--card-w);
+            height: var(--card-h);
             display: flex;
             align-items: center;
             justify-content: center;
             color: #111827;
             background:
-                linear-gradient(90deg, rgba(15, 23, 42, 0.06) 1px, transparent 1px),
-                linear-gradient(rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(15,23,42,0.06) 1px, transparent 1px),
+                linear-gradient(rgba(15,23,42,0.06) 1px, transparent 1px),
                 #fff7df;
             background-size: 8px 8px;
-            border: 4px solid #1e293b;
-            border-radius: 3px;
+            border: 3px solid #1e293b;
+            border-radius: 6px;
             box-shadow:
-                inset 0 0 0 3px #fef3c7,
-                inset 0 0 0 6px rgba(30, 41, 59, 0.18),
-                5px 5px 0 rgba(0, 0, 0, 0.35);
+                inset 0 0 0 2px #fef3c7,
+                inset 0 0 0 4px rgba(30,41,59,0.18),
+                3px 3px 0 rgba(0,0,0,0.3);
             font-family: "Courier New", monospace;
             font-weight: 900;
             image-rendering: pixelated;
-            transition: transform 0.18s steps(3, end), box-shadow 0.18s steps(3, end);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+            flex-shrink: 0;
         }
         .playing-card::before,
         .playing-card::after {
             content: attr(data-card);
             position: absolute;
-            font-size: var(--card-corner-font-size);
+            font-size: 0.6rem;
             line-height: 1;
         }
-        .playing-card::before { top: 6px; left: 6px; }
-        .playing-card::after { right: 6px; bottom: 6px; transform: rotate(180deg); }
-        .playing-card .card-rank {
-            font-size: var(--card-rank-font-size);
-            letter-spacing: var(--card-rank-letter-spacing);
+        .playing-card::before { top: 4px; left: 4px; }
+        .playing-card::after  { right: 4px; bottom: 4px; transform: rotate(180deg); }
+        .playing-card .card-rank { font-size: 1.3rem; letter-spacing: -0.06em; }
+        .pixel-red   { color: #dc2626; }
+        .pixel-black  { color: #111827; }
+        .pixel-gold   { color: #ca8a04; }
+
+        /* ── Face-down card ── */
+        .card-back {
+            width: var(--card-w);
+            height: var(--card-h);
+            border-radius: 6px;
+            border: 3px solid #1e293b;
+            background:
+                repeating-linear-gradient(45deg, #1e3a5f 0px, #1e3a5f 4px, #162d4d 4px, #162d4d 8px);
+            box-shadow:
+                inset 0 0 0 2px #2563eb,
+                inset 0 0 0 4px rgba(30,41,59,0.3),
+                3px 3px 0 rgba(0,0,0,0.3);
+            flex-shrink: 0;
+            position: relative;
         }
-        .pixel-red { color: #dc2626; }
-        .pixel-black { color: #111827; }
-        .pixel-gold { color: #ca8a04; }
+        .card-back::after {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border: 1px solid rgba(59,130,246,0.3);
+            border-radius: 3px;
+        }
+
+        /* ── Mini cards (past tricks) ── */
+        .mini-card {
+            width: var(--mini-card-w);
+            height: var(--mini-card-h);
+            border-width: 2px;
+            box-shadow: inset 0 0 0 1px #fef3c7, 2px 2px 0 rgba(0,0,0,0.2);
+        }
+        .mini-card::before, .mini-card::after { display: none; }
+        .mini-card .card-rank { font-size: 0.75rem; }
+        .mini-card-back {
+            width: var(--mini-card-w);
+            height: var(--mini-card-h);
+            border-width: 2px;
+        }
+
+        /* ── Table ── */
+        .table-felt {
+            background: radial-gradient(ellipse at center, #1a5c2e 0%, #14532d 50%, #0f4025 100%);
+            border: 6px solid #4a2c0a;
+            box-shadow:
+                inset 0 0 60px rgba(0,0,0,0.4),
+                0 0 0 4px #2d1a06,
+                0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        /* ── Player seats ── */
+        .seat { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .seat-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 2px 10px;
+            border-radius: 9999px;
+            white-space: nowrap;
+        }
+
+        /* ── Opponent hands (side/top) ── */
+        .opp-hand {
+            display: flex;
+            gap: -8px;
+            align-items: center;
+            justify-content: center;
+        }
+        .opp-hand .card-back { margin-left: -14px; }
+        .opp-hand .card-back:first-child { margin-left: 0; }
+
+        .opp-hand-vertical {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .opp-hand-vertical .card-back {
+            margin-top: -52px;
+            transform: rotate(90deg);
+        }
+        .opp-hand-vertical .card-back:first-child { margin-top: 0; }
+
+        /* ── Player hand (bottom fan) ── */
         .hand-wrap {
-            min-height: 150px;
-            padding-top: 24px;
             display: flex;
             justify-content: center;
             align-items: flex-end;
-            gap: 0;
+            padding: 8px 0;
+            min-height: 120px;
         }
         .hand-card {
             margin-left: var(--hand-card-overlap);
@@ -85,233 +161,221 @@
             z-index: 30 !important;
             transform: rotate(var(--fan-rotation)) translateY(calc(var(--fan-offset) - var(--hand-card-hover-lift))) scale(var(--hand-card-hover-scale));
             box-shadow:
-                inset 0 0 0 3px #fef3c7,
-                inset 0 0 0 6px rgba(30, 41, 59, 0.18),
-                7px 7px 0 rgba(0, 0, 0, 0.45),
-                0 0 24px rgba(59, 130, 246, 0.45);
+                inset 0 0 0 2px #fef3c7,
+                inset 0 0 0 4px rgba(30,41,59,0.18),
+                5px 5px 0 rgba(0,0,0,0.4),
+                0 0 20px rgba(59,130,246,0.4);
         }
-        .trick-stage {
+        .playable-card {
+            cursor: pointer;
+            border-color: #38bdf8;
+            box-shadow:
+                inset 0 0 0 2px #fef3c7,
+                inset 0 0 0 4px rgba(30,41,59,0.18),
+                3px 3px 0 rgba(0,0,0,0.3),
+                0 0 14px rgba(56,189,248,0.5);
+        }
+        .playable-card:focus-visible { outline: 3px solid #38bdf8; outline-offset: 4px; }
+
+        /* ── Trick center ── */
+        .trick-center {
             position: relative;
-            height: 320px;
-            width: min(100%, 620px);
-            margin: 0 auto;
+            width: 260px;
+            height: 200px;
         }
         .trick-slot {
             position: absolute;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.5rem;
         }
-        .trick-slot.top { top: 0; left: 50%; transform: translateX(-50%); }
-        .trick-slot.left { top: 50%; left: 0.75rem; transform: translateY(-50%); }
-        .trick-slot.right { top: 50%; right: 0.75rem; transform: translateY(-50%); }
+        .trick-slot.top    { top: 0;   left: 50%; transform: translateX(-50%); }
         .trick-slot.bottom { bottom: 0; left: 50%; transform: translateX(-50%); }
+        .trick-slot.left   { top: 50%; left: 0;   transform: translateY(-50%); }
+        .trick-slot.right  { top: 50%; right: 0;   transform: translateY(-50%); }
         .trick-card-space {
-            width: 88px;
-            height: 120px;
+            width: 72px;
+            height: 98px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 2px dashed rgba(148, 163, 184, 0.22);
-            border-radius: 5px;
-            background: rgba(15, 23, 42, 0.2);
+            border: 2px dashed rgba(148,163,184,0.18);
+            border-radius: 6px;
+            background: rgba(15,23,42,0.15);
         }
-        .trick-slot.left .playing-card { transform: rotate(var(--trick-card-left-near-horizontal)) translateX(4px); }
-        .trick-slot.right .playing-card { transform: rotate(var(--trick-card-right-near-horizontal)) translateX(-4px); }
-        .trick-slot.top .playing-card { transform: rotate(180deg); }
-        .trick-slot.bottom .playing-card { transform: rotate(0deg); border-color: #2563eb; }
-        .mini-card {
-            width: 34px;
-            height: 48px;
-            border-width: 2px;
-            box-shadow: inset 0 0 0 2px #fef3c7, 3px 3px 0 rgba(0, 0, 0, 0.25);
-        }
-        .mini-card::before,
-        .mini-card::after { display: none; }
-        .mini-card .card-rank { font-size: 0.8rem; }
-        .playable-card {
-            cursor: pointer;
-            border-color: #38bdf8;
-            box-shadow:
-                inset 0 0 0 3px #fef3c7,
-                inset 0 0 0 6px rgba(30, 41, 59, 0.18),
-                5px 5px 0 rgba(0, 0, 0, 0.35),
-                0 0 18px rgba(56, 189, 248, 0.5);
-        }
-        .playable-card:focus-visible {
-            outline: 3px solid #38bdf8;
-            outline-offset: 5px;
-        }
+        .trick-slot .playing-card { width: 64px; height: 92px; }
+        .trick-slot.left  .playing-card { transform: rotate(84deg);  }
+        .trick-slot.right .playing-card { transform: rotate(-84deg); }
+        .trick-slot.top   .playing-card { transform: rotate(180deg); }
+        .trick-slot.bottom .playing-card { border-color: #2563eb; }
+
+        /* ── Scrollbar ── */
+        .thin-scroll::-webkit-scrollbar { height: 4px; }
+        .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+        .thin-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+        /* ── Active player glow ── */
+        .active-seat .seat-label { box-shadow: 0 0 12px rgba(250,204,21,0.5); }
     </style>
 </head>
-<body class="min-h-screen flex flex-col p-4 bg-gradient">
-    <header class="flex justify-between items-center mb-6 pb-4 border-b border-slate-700">
+<body class="min-h-screen flex flex-col p-3" style="background: #0f172a;">
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-3 pb-3 border-b border-slate-700">
         <div>
-            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Baloot V2 AI</h1>
-            <p class="text-sm text-slate-400">Play against MAPPO Agents</p>
+            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Baloot V2 AI</h1>
+            <p class="text-xs text-slate-400">Play against MAPPO Agents</p>
         </div>
-        <div class="flex gap-4">
-            <div class="bg-slate-800 px-4 py-2 rounded-lg card">
-                <span class="text-slate-400 text-sm">Team 0 (You):</span> 
-                <span id="score-t0" class="font-bold text-emerald-400 ml-2">0</span>
+        <div class="flex gap-3 items-center">
+            <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                <span class="text-slate-400 text-xs">Team 0 (You):</span>
+                <span id="score-t0" class="font-bold text-emerald-400 ml-1">0</span>
             </div>
-            <div class="bg-slate-800 px-4 py-2 rounded-lg card">
-                <span class="text-slate-400 text-sm">Team 1 (AI):</span> 
-                <span id="score-t1" class="font-bold text-rose-400 ml-2">0</span>
+            <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                <span class="text-slate-400 text-xs">Team 1 (AI):</span>
+                <span id="score-t1" class="font-bold text-rose-400 ml-1">0</span>
             </div>
-            <select id="model-select" class="bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 outline-none focus:border-blue-500 transition max-w-[200px]">
+            <select id="model-select" class="bg-slate-800 text-white text-sm px-2 py-1.5 rounded-lg border border-slate-700 outline-none focus:border-blue-500 max-w-[180px]">
                 <option value="">Loading models...</option>
             </select>
-            <button onclick="startGame()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/30">New Game</button>
+            <button onclick="startGame()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-1.5 rounded-lg font-medium transition shadow-lg shadow-blue-500/20">New Game</button>
         </div>
     </header>
 
-    <div class="flex flex-1 gap-6">
-        <!-- Main Game Area -->
-        <main class="flex-1 flex flex-col">
-            <!-- Game Info -->
-            <div id="game-info" class="flex justify-between items-center bg-slate-800/50 p-4 rounded-xl mb-6 border border-slate-700 hidden">
-                <div class="flex gap-6">
-                    <div><span class="text-slate-400 text-sm">Phase:</span> <span id="phase" class="font-semibold text-yellow-400"></span></div>
-                    <div><span class="text-slate-400 text-sm">Dealer:</span> <span id="dealer" class="font-semibold"></span></div>
-                </div>
-                <div id="contract-info" class="hidden flex gap-4 text-sm bg-slate-900/50 px-4 py-2 rounded-lg">
-                    <div>Contract: <span id="contract" class="font-bold text-yellow-400"></span></div>
-                    <div>Buyer: <span id="buyer" class="font-bold"></span></div>
-                    <div>Trump: <span id="trump" class="font-bold text-red-400"></span></div>
-                </div>
-            </div>
+    <!-- Game info bar -->
+    <div id="game-info" class="flex justify-between items-center bg-slate-800/50 px-4 py-2 rounded-lg mb-3 border border-slate-700 hidden text-sm">
+        <div class="flex gap-5">
+            <div><span class="text-slate-400">Phase:</span> <span id="phase" class="font-semibold text-yellow-400"></span></div>
+            <div><span class="text-slate-400">Dealer:</span> <span id="dealer" class="font-semibold"></span></div>
+        </div>
+        <div id="contract-info" class="hidden flex gap-4 text-xs bg-slate-900/50 px-3 py-1.5 rounded-lg">
+            <div>Contract: <span id="contract" class="font-bold text-yellow-400"></span></div>
+            <div>Buyer: <span id="buyer" class="font-bold"></span></div>
+            <div>Trump: <span id="trump" class="font-bold text-red-400"></span></div>
+        </div>
+    </div>
 
-            <!-- Table / Trick Area -->
-            <div class="flex-1 flex items-center justify-center min-h-[300px] mb-6 relative">
-                <!-- Bidding Phase -->
-                <div id="bidding-table" class="hidden text-center">
-                    <p class="text-slate-400 mb-4 font-medium tracking-widest uppercase text-sm">Face Up Card</p>
-                    <div id="face-up-card" class="playing-card mx-auto text-3xl"></div>
-                    <div id="bidding-actions" class="mt-5 flex gap-3 flex-wrap justify-center min-h-[50px]"></div>
+    <!-- Main content: Table + Sidebar -->
+    <div class="flex flex-1 gap-4 min-h-0">
+        <main class="flex-1 flex flex-col min-h-0">
+            <!-- ═══ THE TABLE ═══ -->
+            <div class="table-felt rounded-[40px] flex-1 flex flex-col items-center justify-between p-4 relative min-h-[480px]">
+
+                <!-- ── Top seat: Teammate ── -->
+                <div id="seat-teammate" class="seat">
+                    <div class="seat-label bg-emerald-900/60 text-emerald-300 border border-emerald-700/40">Teammate</div>
+                    <div id="hand-teammate" class="opp-hand"></div>
                 </div>
 
-                <!-- Playing Phase -->
-                <div id="playing-table" class="hidden w-full max-w-2xl">
-                    <p class="text-center text-slate-400 mb-8 font-medium tracking-widest uppercase text-sm">Current Trick</p>
-                    <div class="trick-stage">
-                        <!-- Teammate -->
-                        <div class="trick-slot top">
-                            <span class="text-xs text-slate-500 mb-2">Teammate</span>
-                            <div id="trick-teammate" class="trick-card-space"></div>
+                <!-- ── Middle row: Left / Trick center / Right ── -->
+                <div class="flex items-center justify-between w-full flex-1">
+                    <!-- Left seat -->
+                    <div id="seat-left" class="seat">
+                        <div class="seat-label bg-rose-900/60 text-rose-300 border border-rose-700/40">Left</div>
+                        <div id="hand-left" class="opp-hand-vertical"></div>
+                    </div>
+
+                    <!-- Center: Bidding OR Trick area -->
+                    <div class="flex-1 flex items-center justify-center">
+                        <!-- Bidding -->
+                        <div id="bidding-table" class="hidden text-center">
+                            <p class="text-green-200/60 mb-3 font-medium tracking-widest uppercase text-xs">Face Up Card</p>
+                            <div id="face-up-card" class="playing-card mx-auto"></div>
+                            <div id="bidding-actions" class="mt-4 flex gap-2 flex-wrap justify-center min-h-[40px]"></div>
                         </div>
-                        <!-- Left -->
-                        <div class="trick-slot left">
-                            <span class="text-xs text-slate-500 mb-2">Left</span>
-                            <div id="trick-left" class="trick-card-space"></div>
-                        </div>
-                        <!-- Right -->
-                        <div class="trick-slot right">
-                            <span class="text-xs text-slate-500 mb-2">Right</span>
-                            <div id="trick-right" class="trick-card-space"></div>
-                        </div>
-                        <!-- You -->
-                        <div class="trick-slot bottom">
-                            <div id="trick-you" class="trick-card-space"></div>
-                            <span class="text-xs text-blue-400 mt-2">You</span>
+                        <!-- Playing: trick area -->
+                        <div id="playing-table" class="hidden">
+                            <div class="trick-center">
+                                <div class="trick-slot top">
+                                    <div id="trick-teammate" class="trick-card-space"></div>
+                                </div>
+                                <div class="trick-slot left">
+                                    <div id="trick-left" class="trick-card-space"></div>
+                                </div>
+                                <div class="trick-slot right">
+                                    <div id="trick-right" class="trick-card-space"></div>
+                                </div>
+                                <div class="trick-slot bottom">
+                                    <div id="trick-you" class="trick-card-space"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Right seat -->
+                    <div id="seat-right" class="seat">
+                        <div class="seat-label bg-rose-900/60 text-rose-300 border border-rose-700/40">Right</div>
+                        <div id="hand-right" class="opp-hand-vertical"></div>
+                    </div>
+                </div>
+
+                <!-- ── Bottom seat: You ── -->
+                <div id="seat-you" class="seat w-full">
+                    <div id="player-hand" class="hand-wrap"></div>
+                    <div class="seat-label bg-blue-900/60 text-blue-300 border border-blue-700/40">You</div>
                 </div>
             </div>
 
-            <!-- Player Hand -->
-            <div id="past-tricks-container" class="hidden w-full mt-2 bg-slate-800/30 p-4 rounded-xl border border-slate-700 mb-6">
-                <p class="text-slate-400 mb-3 font-medium text-sm">Past Tricks</p>
-                <div id="past-tricks-list" class="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
+            <!-- Actions bar -->
+            <div class="mt-3 flex items-center gap-3">
+                <span class="text-slate-400 text-xs font-medium shrink-0">Actions:</span>
+                <div id="actions-container" class="flex gap-2 flex-wrap min-h-[36px] items-center">
+                    <span class="text-slate-500 italic text-sm">Click 'New Game' to start</span>
                 </div>
             </div>
 
-            <div class="mt-auto">
-                <p class="text-slate-400 mb-3 text-sm font-medium">Your Hand</p>
-                <div id="player-hand" class="hand-wrap"></div>
-            </div>
-
-            <!-- Actions -->
-            <div class="mt-6">
-                <p class="text-slate-400 mb-3 text-sm font-medium">Available Actions</p>
-                <div id="actions-container" class="flex gap-3 flex-wrap min-h-[50px]">
-                    <span class="text-slate-500 italic">Click 'New Game' to start</span>
-                </div>
+            <!-- Past tricks row -->
+            <div id="past-tricks-container" class="hidden mt-3 bg-slate-800/30 p-3 rounded-lg border border-slate-700">
+                <p class="text-slate-400 mb-2 font-medium text-xs">Past Tricks</p>
+                <div id="past-tricks-list" class="flex gap-3 overflow-x-auto pb-1 thin-scroll"></div>
             </div>
         </main>
 
-        <!-- Sidebar (Logs) -->
-        <aside class="w-80 flex flex-col bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-            <div class="bg-slate-800 p-3 border-b border-slate-700 font-semibold text-sm">Game Logs</div>
-            <div id="logs-container" class="flex-1 p-4 overflow-y-auto text-sm flex flex-col gap-2 font-mono h-[600px]"></div>
+        <!-- Sidebar: Logs -->
+        <aside class="w-64 flex flex-col bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden shrink-0">
+            <div class="bg-slate-800 p-2.5 border-b border-slate-700 font-semibold text-xs">Game Logs</div>
+            <div id="logs-container" class="flex-1 p-3 overflow-y-auto text-xs flex flex-col gap-1.5 font-mono h-[500px]"></div>
         </aside>
     </div>
 
     <script>
         let pollTimer = null;
-        // Provides visible pacing between AI moves for better user experience.
         const AI_TURN_DELAY_MS = 1000;
-        // Maximum hand-card rotation, vertical lift, and center point for the fan layout.
-        const FAN_ROTATION_DEGREES = 38;
-        const FAN_VERTICAL_OFFSET = 28;
-        const FAN_CENTER_OFFSET = 0.5;
-        const HTML_ESCAPE_CHARS = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;',
-            '`': '&#96;'
-        };
+        const FAN_MAX_DEG = 32;
+        const FAN_MAX_OFFSET = 22;
+        const HTML_ESCAPE_CHARS = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;', '`':'&#96;' };
 
-        function getCardColorClass(str) {
-            if (!str) return 'pixel-gold';
-            if (str.includes('♥') || str.includes('♦')) return 'pixel-red';
-            if (str.includes('♠') || str.includes('♣')) return 'pixel-black';
-            // Use gold for non-standard cards such as bid/action labels that do not include suits.
+        function escapeHtml(s) { return String(s||'').replace(/[&<>"'`]/g, c => HTML_ESCAPE_CHARS[c]); }
+
+        function getCardColorClass(s) {
+            if (!s) return 'pixel-gold';
+            if (s.includes('\u2665') || s.includes('\u2666')) return 'pixel-red';
+            if (s.includes('\u2660') || s.includes('\u2663')) return 'pixel-black';
             return 'pixel-gold';
         }
 
-        function escapeHtml(str) {
-            return String(str || '').replace(/[&<>"'`]/g, char => HTML_ESCAPE_CHARS[char]);
+        function renderPixelCard(str, extra = '') {
+            const safe = escapeHtml(str || '');
+            const cc = getCardColorClass(str || '');
+            return `<div class="playing-card ${cc} ${extra}" data-card="${safe}"><span class="card-rank">${safe}</span></div>`;
         }
 
-        function renderPixelCard(str, extraClasses = '') {
-            const cardText = str || '';
-            const safeCardText = escapeHtml(cardText);
-            const colorClass = getCardColorClass(cardText);
-            return `<div class="playing-card ${colorClass} ${extraClasses}" data-card="${safeCardText}">
-                <span class="card-rank">${safeCardText}</span>
-            </div>`;
+        function setPixelCardElement(el, str, extra = '') {
+            const safe = escapeHtml(str || '');
+            el.className = `playing-card ${getCardColorClass(str || '')} ${extra}`;
+            el.dataset.card = safe;
+            el.innerHTML = `<span class="card-rank">${safe}</span>`;
         }
 
-        function setPixelCardElement(element, str, extraClasses = '') {
-            const cardText = str || '';
-            element.className = `playing-card ${getCardColorClass(cardText)} ${extraClasses}`;
-            element.dataset.card = escapeHtml(cardText);
-            element.innerHTML = `<span class="card-rank">${escapeHtml(cardText)}</span>`;
-        }
-
-        function formatCardText(str) {
-            if (!str) return '';
-            if (str.includes('♥') || str.includes('♦')) {
-                return `<span class="text-red-500">${str}</span>`;
-            }
-            if (str.includes('♠') || str.includes('♣')) {
-                return `<span class="text-slate-800">${str}</span>`;
-            }
-            return `<span class="text-yellow-500">${str}</span>`;
+        function renderCardBacks(count) {
+            let html = '';
+            for (let i = 0; i < count; i++) html += '<div class="card-back"></div>';
+            return html;
         }
 
         function formatCardDarkText(str) {
             if (!str) return '';
-            if (str.includes('♥') || str.includes('♦')) {
-                return `<span class="text-red-400">${str}</span>`;
-            }
-            if (str.includes('♠') || str.includes('♣')) {
-                return `<span class="text-slate-100">${str}</span>`; 
-            }
+            if (str.includes('\u2665') || str.includes('\u2666')) return `<span class="text-red-400">${str}</span>`;
+            if (str.includes('\u2660') || str.includes('\u2663')) return `<span class="text-slate-100">${str}</span>`;
             return `<span class="text-yellow-400">${str}</span>`;
         }
 
@@ -319,47 +383,31 @@
             try {
                 const res = await fetch('/models');
                 const models = await res.json();
-                const select = document.getElementById('model-select');
-                select.innerHTML = '';
-                if (models.length === 0) {
-                    select.innerHTML = '<option value="">No models found</option>';
-                    return;
-                }
+                const sel = document.getElementById('model-select');
+                sel.innerHTML = '';
+                if (!models.length) { sel.innerHTML = '<option value="">No models found</option>'; return; }
                 models.forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m;
-                    opt.textContent = m;
-                    if (m === "mappo_update_100.h5") opt.selected = true;
-                    select.appendChild(opt);
+                    const o = document.createElement('option');
+                    o.value = m; o.textContent = m;
+                    if (m === "mappo_update_100.h5") o.selected = true;
+                    sel.appendChild(o);
                 });
-            } catch (e) {
-                console.error("Failed to load models", e);
-            }
+            } catch(e) { console.error("Failed to load models", e); }
         }
-        
         fetchModels();
 
         async function startGame() {
             clearTimeout(pollTimer);
-            const modelSelect = document.getElementById('model-select');
-            const selectedModel = modelSelect.value;
-            document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse">Initializing game...</span>';
-            const res = await fetch('/start', { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: selectedModel })
-            });
+            const model = document.getElementById('model-select').value;
+            document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse text-sm">Initializing...</span>';
+            const res = await fetch('/start', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model}) });
             if (res.ok) fetchState();
         }
 
         async function takeAction(index) {
-            document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse">Processing...</span>';
+            document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse text-sm">Processing...</span>';
             document.getElementById('bidding-actions').innerHTML = '';
-            await fetch('/action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action_index: index })
-            });
+            await fetch('/action', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action_index:index}) });
             fetchState();
         }
 
@@ -370,145 +418,135 @@
                 if (!res.ok) return;
                 const state = await res.json();
                 const isHumanTurn = state.is_human_turn && !state.done;
-                
+
                 document.getElementById('game-info').classList.remove('hidden');
-                
-                // Info
                 document.getElementById('score-t0').innerText = state.scores[0];
                 document.getElementById('score-t1').innerText = state.scores[1];
                 document.getElementById('phase').innerText = state.phase.toUpperCase();
                 document.getElementById('dealer').innerText = state.dealer;
 
+                // ── Opponent hands (face-down cards) ──
+                const counts = state.opponent_hand_counts || {};
+                document.getElementById('hand-teammate').innerHTML = renderCardBacks(counts.teammate || 0);
+                document.getElementById('hand-left').innerHTML    = renderCardBacks(counts.left || 0);
+                document.getElementById('hand-right').innerHTML   = renderCardBacks(counts.right || 0);
+
+                // ── Phase-specific center ──
                 if (state.phase === 'bidding') {
                     document.getElementById('bidding-table').classList.remove('hidden');
                     document.getElementById('playing-table').classList.add('hidden');
                     document.getElementById('contract-info').classList.add('hidden');
                     document.getElementById('past-tricks-container').classList.add('hidden');
-                    
-                    setPixelCardElement(document.getElementById('face-up-card'), state.face_up, 'mx-auto text-3xl');
+                    setPixelCardElement(document.getElementById('face-up-card'), state.face_up, 'mx-auto');
                 } else {
                     document.getElementById('bidding-table').classList.add('hidden');
                     document.getElementById('playing-table').classList.remove('hidden');
                     document.getElementById('contract-info').classList.remove('hidden');
-                    
                     document.getElementById('contract').innerText = state.contract || '';
                     document.getElementById('buyer').innerText = state.buyer || '';
                     document.getElementById('trump').innerText = state.trump || 'None';
 
                     // Trick
-                    const positions = { "Teammate": "trick-teammate", "Your Left": "trick-left", "Your Right": "trick-right", "You": "trick-you" };
+                    const positions = { "Teammate":"trick-teammate", "Your Left":"trick-left", "Your Right":"trick-right", "You":"trick-you" };
                     Object.values(positions).forEach(id => document.getElementById(id).innerHTML = '');
-                    
                     if (state.trick) {
                         state.trick.forEach(t => {
-                            if (t.card && positions[t.player]) {
+                            if (t.card && positions[t.player])
                                 document.getElementById(positions[t.player]).innerHTML = renderPixelCard(t.card);
-                            }
                         });
                     }
 
                     // Past Tricks
                     if (state.trick_history && state.trick_history.length > 0) {
                         document.getElementById('past-tricks-container').classList.remove('hidden');
-                        const historyContainer = document.getElementById('past-tricks-list');
-                        historyContainer.innerHTML = '';
+                        const histCont = document.getElementById('past-tricks-list');
+                        histCont.innerHTML = '';
                         state.trick_history.forEach(th => {
-                            let trickHtml = `<div class="bg-slate-800 p-3 rounded-lg border border-slate-700 min-w-[150px] shrink-0">
-                                <div class="text-xs text-slate-400 mb-2 font-bold uppercase tracking-wider">Trick ${th.trick_number}</div>
-                                <div class="flex gap-1 justify-center mb-2 flex-wrap">`;
-                            
+                            let html = `<div class="bg-slate-800 p-2 rounded-lg border border-slate-700 min-w-[130px] shrink-0">
+                                <div class="text-[10px] text-slate-400 mb-1 font-bold uppercase tracking-wider">Trick ${th.trick_number}</div>
+                                <div class="flex gap-0.5 justify-center mb-1 flex-wrap">`;
                             th.cards.forEach(c => {
-                                if (c.card) {
-                                    trickHtml += `<div class="cursor-help" title="${escapeHtml(c.player)}">${renderPixelCard(c.card, 'mini-card')}</div>`;
-                                }
+                                if (c.card) html += `<div class="cursor-help" title="${escapeHtml(c.player)}">${renderPixelCard(c.card,'mini-card')}</div>`;
                             });
-                            
-                            trickHtml += `</div>
-                                <div class="text-xs text-emerald-400 text-center font-semibold truncate">Won by ${th.winner}</div>
-                            </div>`;
-                            historyContainer.innerHTML += trickHtml;
+                            html += `</div><div class="text-[10px] text-emerald-400 text-center font-semibold truncate">Won by ${th.winner}</div></div>`;
+                            histCont.innerHTML += html;
                         });
-                        
-                        // Scroll to the end to show the latest tricks
-                        historyContainer.scrollLeft = historyContainer.scrollWidth;
+                        histCont.scrollLeft = histCont.scrollWidth;
                     } else {
                         document.getElementById('past-tricks-container').classList.add('hidden');
                     }
                 }
 
-                // Hand
-                const handContainer = document.getElementById('player-hand');
-                handContainer.innerHTML = '';
-                const fanSpreadBase = Math.max(state.hand.length - 1, 1);
-                state.hand.forEach((handCard, index) => {
+                // ── Player hand (visible, fanned) ──
+                const handEl = document.getElementById('player-hand');
+                handEl.innerHTML = '';
+                const n = state.hand.length;
+                const fanBase = Math.max(n - 1, 1);
+                state.hand.forEach((hc, i) => {
+                    const card = hc.text;
+                    const safe = escapeHtml(card);
+                    const spread = n > 1 ? (i / fanBase - 0.5) : 0;
+                    const rot = spread * FAN_MAX_DEG;
+                    const off = Math.abs(spread) * FAN_MAX_OFFSET;
+                    const actionIdx = hc.action_index;
+                    const canPlay = isHumanTurn && state.phase !== 'bidding' && actionIdx !== null;
                     const div = document.createElement('div');
-                    const card = handCard.text;
-                    const safeCard = escapeHtml(card);
-                    // Normalize each card position around center to fan symmetrically from left to right.
-                    const spread = state.hand.length > 1 ? (index / fanSpreadBase - FAN_CENTER_OFFSET) : 0;
-                    const rotation = spread * FAN_ROTATION_DEGREES;
-                    const offset = Math.abs(spread) * FAN_VERTICAL_OFFSET;
-                    const actionIndex = handCard.action_index;
-                    const canPlayCard = isHumanTurn && state.phase !== 'bidding' && actionIndex !== null;
-                    div.className = `playing-card ${getCardColorClass(card)} hand-card ${canPlayCard ? 'playable-card' : ''}`;
-                    div.dataset.card = safeCard;
-                    div.style.setProperty('--fan-rotation', `${rotation}deg`);
-                    div.style.setProperty('--fan-offset', `${offset}px`);
-                    div.style.zIndex = index + 1;
-                    div.innerHTML = `<span class="card-rank">${safeCard}</span>`;
-                    if (canPlayCard) {
-                        div.title = `Play ${safeCard}`;
+                    div.className = `playing-card ${getCardColorClass(card)} hand-card ${canPlay ? 'playable-card' : ''}`;
+                    div.dataset.card = safe;
+                    div.style.setProperty('--fan-rotation', `${rot}deg`);
+                    div.style.setProperty('--fan-offset', `${off}px`);
+                    div.style.zIndex = i + 1;
+                    div.innerHTML = `<span class="card-rank">${safe}</span>`;
+                    if (canPlay) {
+                        div.title = `Play ${safe}`;
                         div.tabIndex = 0;
                         div.setAttribute('role', 'button');
-                        div.setAttribute('aria-label', `Play ${safeCard}`);
-                        div.onclick = () => takeAction(actionIndex);
-                        div.onkeydown = (event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                takeAction(actionIndex);
-                            }
-                        };
+                        div.setAttribute('aria-label', `Play ${safe}`);
+                        div.onclick = () => takeAction(actionIdx);
+                        div.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); takeAction(actionIdx); } };
                     }
-                    handContainer.appendChild(div);
+                    handEl.appendChild(div);
                 });
 
-                // Actions
-                const actionsContainer = document.getElementById('actions-container');
-                const biddingActions = document.getElementById('bidding-actions');
-                actionsContainer.innerHTML = '';
-                biddingActions.innerHTML = '';
+                // ── Actions ──
+                const actEl = document.getElementById('actions-container');
+                const bidEl = document.getElementById('bidding-actions');
+                actEl.innerHTML = '';
+                bidEl.innerHTML = '';
                 if (isHumanTurn && state.phase === 'bidding') {
                     state.valid_actions.forEach(act => {
                         const btn = document.createElement('button');
-                        btn.className = 'bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white px-4 py-2 rounded-lg transition card font-semibold';
+                        btn.className = 'bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white px-3 py-1.5 rounded-lg transition font-semibold text-sm';
                         btn.innerHTML = formatCardDarkText(act.text);
                         btn.onclick = () => takeAction(act.index);
-                        biddingActions.appendChild(btn);
+                        bidEl.appendChild(btn);
                     });
-                    actionsContainer.innerHTML = '<span class="text-slate-500 italic">Choose a bid under the face-up card.</span>';
+                    actEl.innerHTML = '<span class="text-slate-500 italic text-sm">Choose a bid under the face-up card.</span>';
                 } else if (isHumanTurn) {
-                    actionsContainer.innerHTML = '<span class="text-blue-300 font-semibold">Click a highlighted card in your hand to play it.</span>';
+                    actEl.innerHTML = '<span class="text-blue-300 font-semibold text-sm">Click a highlighted card in your hand to play it.</span>';
                 } else if (!state.done) {
-                    actionsContainer.innerHTML = '<span class="text-slate-500 italic animate-pulse">Waiting for AI turns...</span>';
+                    actEl.innerHTML = '<span class="text-slate-500 italic animate-pulse text-sm">Waiting for AI turns...</span>';
                     pollTimer = setTimeout(() => fetchState({ advanceAi: true }), AI_TURN_DELAY_MS);
                 } else {
-                    actionsContainer.innerHTML = '<span class="text-emerald-400 font-bold text-xl">Game Over!</span>';
+                    actEl.innerHTML = '<span class="text-emerald-400 font-bold text-lg">Game Over!</span>';
                 }
 
-                // Logs
-                const logsContainer = document.getElementById('logs-container');
-                logsContainer.innerHTML = '';
-                state.logs.forEach(log => {
-                    const div = document.createElement('div');
-                    div.className = 'text-slate-300 pb-2 border-b border-slate-700/50 last:border-0';
-                    div.innerHTML = formatCardDarkText(log);
-                    logsContainer.appendChild(div);
-                });
-                logsContainer.scrollTop = logsContainer.scrollHeight;
+                // ── Active player seat highlight ──
+                document.querySelectorAll('.seat').forEach(s => s.classList.remove('active-seat'));
+                // (could highlight current player's seat here if desired)
 
-            } catch (err) {
-                console.error("Error fetching state:", err);
-            }
+                // ── Logs ──
+                const logEl = document.getElementById('logs-container');
+                logEl.innerHTML = '';
+                state.logs.forEach(log => {
+                    const d = document.createElement('div');
+                    d.className = 'text-slate-300 pb-1.5 border-b border-slate-700/50 last:border-0';
+                    d.innerHTML = formatCardDarkText(log);
+                    logEl.appendChild(d);
+                });
+                logEl.scrollTop = logEl.scrollHeight;
+
+            } catch(err) { console.error("Error fetching state:", err); }
         }
     </script>
 </body>

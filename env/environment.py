@@ -811,7 +811,7 @@ class BalootMultiAgentEnv(gym.Env):
             return
 
         candidate_players = {player for player, _ in candidates}
-        turn_sequence = [(start_player + offset) % 4 for offset in range(4)]
+        turn_sequence = [(start_player + turn_offset) % 4 for turn_offset in range(4)]
 
         for player in turn_sequence:
             if player not in candidate_players or player in self.set_resolution_reveals:

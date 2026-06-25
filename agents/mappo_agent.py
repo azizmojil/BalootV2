@@ -40,6 +40,21 @@ class MAPPOAgent:
         if arr.ndim != 2 or arr.shape[1] != expected_dim:
             raise ValueError(f"{name} must have shape (batch, {expected_dim}), got {arr.shape}")
 
+    @tf.function
+    def _forward_pass(self, local_obs_t, global_state_t, mask_t):
+        logits, value = self.model([local_obs_t, global_state_t], training=False)
+        value = tf.squeeze(value, axis=0)
+        
+        very_negative = -1e10 * tf.ones_like(logits)
+        masked_logits = tf.where(mask_t > 0, logits, very_negative)
+        masked_log_probs = tf.nn.log_softmax(masked_logits, axis=1)
+
+        action_tensor = tf.random.categorical(masked_log_probs, num_samples=1)
+        action = tf.squeeze(action_tensor)
+        log_prob = masked_log_probs[0, action]
+
+        return action, log_prob, value
+
     def select_action(self, local_obs, global_state, mask):
         local_obs = self._as_vector("local_obs", local_obs, self.local_obs_dim)
         global_state = self._as_vector("global_state", global_state, self.global_state_dim)
@@ -52,19 +67,9 @@ class MAPPOAgent:
         global_state_t = tf.convert_to_tensor(global_state[None, :], dtype=tf.float32)
         mask_t = tf.convert_to_tensor(mask[None, :], dtype=tf.float32)
         
-        logits, value = self.model([local_obs_t, global_state_t], training=False)
-        value = tf.squeeze(value, axis=0)
-        
-        very_negative = -1e10 * tf.ones_like(logits)
-        masked_logits = tf.where(mask_t > 0, logits, very_negative)
-        masked_log_probs = tf.nn.log_softmax(masked_logits, axis=1)
+        action_t, log_prob_t, value_t = self._forward_pass(local_obs_t, global_state_t, mask_t)
 
-        action_tensor = tf.random.categorical(masked_log_probs, num_samples=1)
-        action = int(tf.squeeze(action_tensor).numpy())
-
-        log_prob = masked_log_probs[0, action]
-
-        return action, log_prob, value
+        return int(action_t.numpy()), log_prob_t, value_t
 
     def compute_advantages_and_returns(self, rewards, dones, values, last_value):
         """
@@ -84,11 +89,16 @@ class MAPPOAgent:
         returns = np.array(advantages) + np.array(values)
         return advantages, returns
 
+    @tf.function
+    def _value_forward_pass(self, local_obs_t, global_state_t):
+        _, value = self.model([local_obs_t, global_state_t], training=False)
+        return tf.squeeze(value, axis=0)
+
     def get_value_for_single_obs(self, local_obs, global_state):
         local_obs_t = tf.convert_to_tensor(local_obs[None, :], dtype=tf.float32)
         global_state_t = tf.convert_to_tensor(global_state[None, :], dtype=tf.float32)
-        _, value = self.model([local_obs_t, global_state_t], training=False)
-        return tf.squeeze(value, axis=0).numpy()
+        value_t = self._value_forward_pass(local_obs_t, global_state_t)
+        return value_t.numpy()
     
     def update(self, memory):
         local_states = np.array(memory["local_states"], dtype=np.float32)

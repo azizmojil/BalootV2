@@ -69,10 +69,24 @@ def print_game_state(env, human_player_id):
             sets_str_list = []
             type_map = {"Sera": "Sira", "Khamseen": "50", "Mia_c": "100", "Mia_s": "100", "Arbamia": "400"}
             for p_idx, p_sets in enumerate(env.declared_sets_info):
-                if p_sets:
-                    p_name = get_relative_name(p_idx, human_player_id)
-                    set_types = [type_map.get(s["type"], s["type"]) for s in p_sets]
-                    sets_str_list.append(f"\033[93m{p_name}\033[0m: {', '.join(set_types)}")
+                if not p_sets: continue
+                
+                if not getattr(env, 'sets_resolved', False):
+                    has_played = env.current_trick[p_idx] is not None
+                    is_turn = (env.current_agent == p_idx)
+                    if not has_played and not is_turn: continue
+                    
+                p_name = get_relative_name(p_idx, human_player_id)
+                pos_sets = []
+                for s in p_sets:
+                    name = type_map.get(s["type"], s["type"])
+                    if getattr(env, 'sets_resolved', False) and "cards" in s:
+                        cards_str = " ".join([format_card(translate_action(CANONICAL_DECK.index(c))) for c in s["cards"]])
+                        name = f"{name} ({cards_str})"
+                    pos_sets.append(name)
+                    
+                sets_str_list.append(f"\033[93m{p_name}\033[0m: {', '.join(pos_sets)}")
+                
             if sets_str_list:
                 print(" " * 22 + "--- ACTIVE SETS ---")
                 print("    " + " | ".join(sets_str_list) + "\n")
@@ -188,6 +202,10 @@ def main(args):
             time.sleep(0.5)
 
         obs_dict, _, dones, _ = env.step(action)
+        
+        if hasattr(env, 'resolution_logs') and env.resolution_logs:
+            print("\n \033[93m" + "\n ".join(env.resolution_logs) + "\033[0m")
+            env.resolution_logs.clear()
         done = dones.get('__all__', False)
 
     print("\n" + "="*50)

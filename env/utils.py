@@ -260,8 +260,7 @@ def allowed_overbids(buyer, dealer, bid_type, doubling_status, bidding_round, ag
         if tm_order < buyer_order and agent in (dealer, left_of_dealer):
             allowed.add(38)
     else:
-        if agent == buyer:
-            allowed.add(33)
+        allowed.add(33)
         if agent in (dealer, left_of_dealer):
             allowed.add(38)
         if has_priority:
@@ -271,8 +270,6 @@ def allowed_overbids(buyer, dealer, bid_type, doubling_status, bidding_round, ag
                 for act in suit_to_action.values():
                     if act != suit_to_action[revealed]:
                         allowed.add(act)
-        if bidding_round > 1 and buyer != dealer:
-            allowed.add(33)
 
     mask = np.zeros(43, dtype=np.float32)
     for a in allowed:

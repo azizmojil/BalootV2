@@ -101,13 +101,14 @@ class BalootMultiAgentEnv(gym.Env):
         self.current_agent = self.trick_leader
         self.current_trick = [None] * 4
         self.last_trick = [None] * 4
-        # Completed trick play order for last_trick; None until a trick completes.
         self.last_trick_order = None
         self.trick_history = []
         self.bidding_history = []
         self.declared_sets = np.zeros((4, 4), dtype=np.float32)
         self.revealed_sets = np.zeros((4, 5), dtype=np.float32)
         self.declared_sets_info = None
+        self.sets_resolved = False
+        self.resolution_logs = []
         self.balot = [False] * 4
         self.detect_balot = [None] * 4
         self.team_bant = [0, 0]
@@ -473,7 +474,6 @@ class BalootMultiAgentEnv(gym.Env):
 
             self.declared_sets_info = [detect_sets(self.hands[p]) for p in range(4)]
             check_set_balot(self.declared_sets_info, self.trump_suit, self.balot)
-            self._resolve_sets()
             self.current_agent = self.trick_leader
 
     def _playing_step(self, agent, action):
@@ -560,6 +560,10 @@ class BalootMultiAgentEnv(gym.Env):
 
             if self.trick_count >= 8:
                 self.team_bant[win_team] += 10
+                
+        if self.trick_count == 1 and not getattr(self, 'sets_resolved', False):
+            if self.declared_sets_info and self.declared_sets_info[self.current_agent]:
+                self._resolve_sets(self.current_agent)
 
     def _evaluate_trick_winner(self):
         lead = self.trick_suit
@@ -716,35 +720,62 @@ class BalootMultiAgentEnv(gym.Env):
                 and self.cumulative_scores[0] != self.cumulative_scores[1]:
             self.match_over = True
 
-    def _resolve_sets(self):
+    def _resolve_sets(self, declaring_agent):
+        self.sets_resolved = True
         best_set = None
         best_player = None
 
+        highest_type = None
         for p, sets in enumerate(self.declared_sets_info):
             for s in sets:
-                if best_set is None:
-                    best_set, best_player = s, p
-                else:
-                    pri_s = SET_PRIORITY[s["type"]]
-                    pri_best = SET_PRIORITY[best_set["type"]]
-                    if pri_s > pri_best:
-                        best_set, best_player = s, p
-                    elif pri_s == pri_best:
-                        if max(card_value(c) for c in s["cards"]) > \
-                                max(card_value(c) for c in best_set["cards"]):
-                            best_set, best_player = s, p
+                if highest_type is None or SET_PRIORITY[s["type"]] > SET_PRIORITY[highest_type]:
+                    highest_type = s["type"]
 
-        if best_player is None:
+        if highest_type is None:
             self.declared_sets_info = [[] for _ in range(4)]
+            return
 
+        contenders = []
+        for p, sets in enumerate(self.declared_sets_info):
+            for s in sets:
+                if s["type"] == highest_type:
+                    contenders.append((p, s))
+
+        teams_contending = set(team(p) for p, s in contenders)
+
+        if len(teams_contending) <= 1:
+            best_set, best_player = max(contenders, key=lambda x: max(card_value(c) for c in x[1]["cards"]))
         else:
-            winning_team = team(best_player)
-            revealed = [[] for _ in range(4)]
-            for p, sets in enumerate(self.declared_sets_info):
-                if team(p) == winning_team:
-                    revealed[p] = [s.copy() for s in sets]
+            trick_order = [(self.trick_leader + i) % 4 for i in range(4)]
+            contenders.sort(key=lambda x: trick_order.index(x[0]))
+            
+            first_contender = contenders[0]
+            first_p = first_contender[0]
+            first_max_val = max(card_value(c) for c in first_contender[1]["cards"])
+            first_rank_str = {11: 'J', 12: 'Q', 13: 'K', 14: 'A'}.get(first_max_val, str(first_max_val))
+            
+            self.resolution_logs.append(f"Player {first_p} asks with {first_rank_str} for {highest_type}.")
+            best_set, best_player = first_contender
+            best_max_val = first_max_val
+            
+            for p, s in contenders[1:]:
+                if team(p) != team(first_p):
+                    p_max_val = max(card_value(c) for c in s["cards"])
+                    p_rank_str = {11: 'J', 12: 'Q', 13: 'K', 14: 'A'}.get(p_max_val, str(p_max_val))
+                    if p_max_val > best_max_val:
+                        self.resolution_logs.append(f"Player {p} replies with {p_rank_str}.")
+                        best_set, best_player = s, p
+                        best_max_val = p_max_val
+                    else:
+                        self.resolution_logs.append(f"Player {p} cannot beat {first_rank_str}.")
 
-            self.declared_sets_info = revealed
+        winning_team = team(best_player)
+        revealed = [[] for _ in range(4)]
+        for p, sets in enumerate(self.declared_sets_info):
+            if team(p) == winning_team:
+                revealed[p] = [s.copy() for s in sets]
+
+        self.declared_sets_info = revealed
 
     def _hidden_declared_set_types(self, player):
         declared = self.declared_sets[player]

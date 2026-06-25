@@ -15,6 +15,7 @@ class BalootMultiAgentEnv(gym.Env):
     INFERENCE_EPSILON = 1e-3
     SET_INFERENCE_STRENGTH = 2.0
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
+    SET_CATEGORY_PRIORITY = {"Sera": 1, "Khamseen": 2, "Mia": 3, "Arbamia": 4}
     OBSERVATION_SCHEMA = {
         # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
         "player_roles": (22,),
@@ -108,6 +109,9 @@ class BalootMultiAgentEnv(gym.Env):
         self.declared_sets = np.zeros((4, 4), dtype=np.float32)
         self.revealed_sets = np.zeros((4, 5), dtype=np.float32)
         self.declared_sets_info = None
+        self.set_declaration_done = [False] * 4
+        self.sets_resolved = False
+        self.set_resolution_reveals = {}
         self.balot = [False] * 4
         self.detect_balot = [None] * 4
         self.team_bant = [0, 0]
@@ -473,20 +477,15 @@ class BalootMultiAgentEnv(gym.Env):
 
             self.declared_sets_info = [detect_sets(self.hands[p]) for p in range(4)]
             check_set_balot(self.declared_sets_info, self.trump_suit, self.balot)
-            self._resolve_sets()
             self.current_agent = self.trick_leader
 
     def _playing_step(self, agent, action):
         canonical = create_deck()
         if self.trick_count == 0:
-            sets = detect_sets(self.hands[agent])
-            set_type_to_index = {"Sera": 0, "Khamseen": 1, "Mia_c": 2, "Mia_s": 2, "Arbamia": 3}
-            for s in sets:
-                set_index = set_type_to_index.get(s["type"])
-                if set_index is None:
-                    raise ValueError(f"Unknown set type: {s['type']}")
-                self.declared_sets[agent, set_index] += 1.0
+            self._declare_sets_for_player(agent)
         if self.trick_count == 1:
+            if not self.sets_resolved:
+                self._resolve_sets_by_second_trick_reveals(agent)
             for s in self.declared_sets_info[agent]:
                 sets_list = list(SET_PRIORITY.keys())
                 i = sets_list.index(s["type"])
@@ -561,6 +560,9 @@ class BalootMultiAgentEnv(gym.Env):
             if self.trick_count >= 8:
                 self.team_bant[win_team] += 10
 
+            if self.trick_count == 1 and not self.sets_resolved:
+                self._resolve_sets_after_first_trick()
+
     def _evaluate_trick_winner(self):
         lead = self.trick_suit
         trump = self.trump_suit
@@ -630,6 +632,9 @@ class BalootMultiAgentEnv(gym.Env):
         return obs_dict, rewards, dones, infos
 
     def _compute_score(self):
+        if not self.sets_resolved:
+            self._resolve_sets_by_full_information()
+
         team_set_bonus = [0, 0]
         team_balot_bonus = [0, 0]
         buyer_team = team(self.buyer)
@@ -717,36 +722,142 @@ class BalootMultiAgentEnv(gym.Env):
             self.match_over = True
 
     def _resolve_sets(self):
+        self._resolve_sets_by_full_information()
+
+    def _set_category(self, set_type):
+        if set_type in ("Mia_c", "Mia_s"):
+            return "Mia"
+        return set_type
+
+    def _set_category_priority(self, set_info):
+        return self.SET_CATEGORY_PRIORITY[self._set_category(set_info["type"])]
+
+    def _set_resolution_value(self, set_info):
+        return max(card_value(card) for card in set_info["cards"])
+
+    def _declare_sets_for_player(self, player):
+        if self.set_declaration_done[player]:
+            return
+
+        set_type_to_index = {"Sera": 0, "Khamseen": 1, "Mia_c": 2, "Mia_s": 2, "Arbamia": 3}
+        for set_info in self.declared_sets_info[player]:
+            set_index = set_type_to_index.get(set_info["type"])
+            if set_index is None:
+                raise ValueError(f"Unknown set type: {set_info['type']}")
+            self.declared_sets[player, set_index] += 1.0
+        self.set_declaration_done[player] = True
+
+    def _filter_declared_sets_to_team(self, winning_team):
+        revealed = [[] for _ in range(4)]
+        for player, sets in enumerate(self.declared_sets_info):
+            if team(player) == winning_team:
+                revealed[player] = [set_info.copy() for set_info in sets]
+
+        self.declared_sets_info = revealed
+        self.sets_resolved = True
+
+    def _clear_declared_sets(self):
+        self.declared_sets_info = [[] for _ in range(4)]
+        self.sets_resolved = True
+
+    def _top_set_candidates(self):
+        candidates = []
+        top_priority = 0
+        for player, sets in enumerate(self.declared_sets_info):
+            for set_info in sets:
+                priority = self._set_category_priority(set_info)
+                if priority > top_priority:
+                    candidates = [(player, set_info)]
+                    top_priority = priority
+                elif priority == top_priority:
+                    candidates.append((player, set_info))
+        return candidates
+
+    def _resolve_sets_after_first_trick(self):
+        candidates = self._top_set_candidates()
+        if not candidates:
+            self._clear_declared_sets()
+            return
+
+        candidate_teams = {team(player) for player, _ in candidates}
+        if len(candidate_teams) == 1:
+            self._filter_declared_sets_to_team(candidate_teams.pop())
+
+    def _record_set_resolution_reveal(self, player, set_info):
+        self.set_resolution_reveals[player] = {
+            "type": set_info["type"],
+            "category": self._set_category(set_info["type"]),
+            "value": self._set_resolution_value(set_info),
+            "priority": SET_PRIORITY[set_info["type"]],
+        }
+
+    def _resolve_sets_by_second_trick_reveals(self, start_player):
+        candidates = self._top_set_candidates()
+        if not candidates:
+            self._clear_declared_sets()
+            return
+
+        candidate_players = {player for player, _ in candidates}
+        ordered_players = [(start_player + offset) % 4 for offset in range(4)]
+
+        for player in ordered_players:
+            if player not in candidate_players or player in self.set_resolution_reveals:
+                continue
+
+            player_sets = [set_info for candidate_player, set_info in candidates if candidate_player == player]
+            best_set = max(
+                player_sets,
+                key=lambda set_info: (
+                    self._set_resolution_value(set_info),
+                    SET_PRIORITY[set_info["type"]],
+                ),
+            )
+            self._record_set_resolution_reveal(player, best_set)
+
+            best_revealed_player, best_revealed = max(
+                self.set_resolution_reveals.items(),
+                key=lambda item: (item[1]["value"], item[1]["priority"]),
+            )
+            if best_revealed["value"] == 14:
+                self._filter_declared_sets_to_team(team(best_revealed_player))
+                return
+
+            if all(candidate_player in self.set_resolution_reveals for candidate_player, _ in candidates):
+                self._resolve_sets_by_full_information()
+                return
+
+    def _resolve_sets_by_full_information(self):
         best_set = None
         best_player = None
 
-        for p, sets in enumerate(self.declared_sets_info):
-            for s in sets:
+        for player, sets in enumerate(self.declared_sets_info):
+            for set_info in sets:
                 if best_set is None:
-                    best_set, best_player = s, p
-                else:
-                    pri_s = SET_PRIORITY[s["type"]]
-                    pri_best = SET_PRIORITY[best_set["type"]]
-                    if pri_s > pri_best:
-                        best_set, best_player = s, p
-                    elif pri_s == pri_best:
-                        if max(card_value(c) for c in s["cards"]) > \
-                                max(card_value(c) for c in best_set["cards"]):
-                            best_set, best_player = s, p
+                    best_set, best_player = set_info, player
+                    continue
+
+                current_key = (
+                    self._set_category_priority(set_info),
+                    self._set_resolution_value(set_info),
+                    SET_PRIORITY[set_info["type"]],
+                )
+                best_key = (
+                    self._set_category_priority(best_set),
+                    self._set_resolution_value(best_set),
+                    SET_PRIORITY[best_set["type"]],
+                )
+                if current_key > best_key:
+                    best_set, best_player = set_info, player
 
         if best_player is None:
-            self.declared_sets_info = [[] for _ in range(4)]
-
+            self._clear_declared_sets()
         else:
-            winning_team = team(best_player)
-            revealed = [[] for _ in range(4)]
-            for p, sets in enumerate(self.declared_sets_info):
-                if team(p) == winning_team:
-                    revealed[p] = [s.copy() for s in sets]
-
-            self.declared_sets_info = revealed
+            self._filter_declared_sets_to_team(team(best_player))
 
     def _hidden_declared_set_types(self, player):
+        if not self.sets_resolved:
+            return []
+
         declared = self.declared_sets[player]
         revealed_names = list(SET_PRIORITY.keys())
         revealed = {

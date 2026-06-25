@@ -8,6 +8,10 @@ OBSERVATION_BIDDING_HISTORY_LENGTH = OBSERVATION_NUM_PLAYERS
 OBSERVATION_BIDDING_HISTORY_FEATURES = (
     OBSERVATION_BIDDING_HISTORY_LENGTH * (OBSERVATION_NUM_PLAYERS + len(BID_ACTIONS))
 )
+OBSERVATION_TRICK_HISTORY_LENGTH = 8
+OBSERVATION_TRICK_HISTORY_FEATURES = (
+    OBSERVATION_TRICK_HISTORY_LENGTH * OBSERVATION_NUM_PLAYERS * 32
+)
 OBSERVATION_SCHEMA = {
     # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
     "player_roles": (22,),
@@ -21,6 +25,7 @@ OBSERVATION_SCHEMA = {
     "cards_ownership": (128,),
     "trick": (128,),
     "last_trick": (128,),
+    "trick_history": (OBSERVATION_TRICK_HISTORY_FEATURES,),
     "declared_sets": (16,),
     "revealed_sets": (20,),
     "bidding_history": (OBSERVATION_BIDDING_HISTORY_FEATURES,),
@@ -53,5 +58,7 @@ __all__ = [
     "OBSERVATION_BIDDING_HISTORY_LENGTH",
     "OBSERVATION_NUM_PLAYERS",
     "OBSERVATION_SCHEMA",
+    "OBSERVATION_TRICK_HISTORY_FEATURES",
+    "OBSERVATION_TRICK_HISTORY_LENGTH",
     "validate_observation",
 ]

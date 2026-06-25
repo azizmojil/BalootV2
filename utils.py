@@ -1,7 +1,11 @@
 import numpy as np
 from gymnasium import spaces
 from env.constants import BID_ACTIONS, RANKS, SUITS, TARGET_SCORE
-from env.utils import one_hot_index
+from env.utils import (
+    OBSERVATION_SCHEMA,
+    OBSERVATION_TRICK_HISTORY_LENGTH,
+    one_hot_index,
+)
 
 
 def require_positive_int(value, name):
@@ -20,7 +24,11 @@ def _observation_keys(obs_dict, observation_space=None, exclude=("action_mask",)
     if observation_space is not None:
         if not isinstance(observation_space, spaces.Dict):
             raise TypeError(f"observation_space must be a gymnasium.spaces.Dict, got {type(observation_space).__name__}")
-        keys = observation_space.spaces.keys()
+        space_keys = list(observation_space.spaces.keys())
+        if set(space_keys) == set(OBSERVATION_SCHEMA):
+            keys = OBSERVATION_SCHEMA.keys()
+        else:
+            keys = space_keys
     else:
         keys = obs_dict.keys()
     return [key for key in keys if key not in exclude]
@@ -99,6 +107,14 @@ def get_global_state(env):
     current_trick = np.concatenate([card_one_hot(card) for card in env.current_trick]).astype(np.float32)
     last_trick = np.concatenate([card_one_hot(card) for card in env.last_trick]).astype(np.float32)
 
+    trick_history_parts = []
+    for entry in list(env.trick_history[-OBSERVATION_TRICK_HISTORY_LENGTH:]):
+        order = entry.get("order", range(4))
+        trick_history_parts.extend(card_one_hot(entry["cards"][player]) for player in order)
+    while len(trick_history_parts) < OBSERVATION_TRICK_HISTORY_LENGTH * 4:
+        trick_history_parts.append(np.zeros(32, dtype=np.float32))
+    trick_history = np.concatenate(trick_history_parts).astype(np.float32)
+
     role_context = np.concatenate([
         player_one_hot(env.dealer),
         player_one_hot(env.current_agent),
@@ -142,6 +158,7 @@ def get_global_state(env):
         card_one_hot(env.face_up),
         current_trick,
         last_trick,
+        trick_history,
         role_context,
         game_context,
         progress_scores,

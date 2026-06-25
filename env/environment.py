@@ -16,7 +16,6 @@ class BalootMultiAgentEnv(gym.Env):
     SET_INFERENCE_STRENGTH = 2.0
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
     SET_CATEGORY_PRIORITY = {"Sera": 1, "Khamseen": 2, "Mia": 3, "Arbamia": 4}
-    ACE_SET_RESOLUTION_VALUE = max(card_value((suit, "A")) for suit in SUITS)
     OBSERVATION_SCHEMA = {
         # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
         "player_roles": (22,),
@@ -741,6 +740,13 @@ class BalootMultiAgentEnv(gym.Env):
             raise ValueError(f"Set {set_info['type']} has no cards")
         return max(card_value(card) for card in set_info["cards"])
 
+    def _set_resolution_key(self, set_info):
+        return (
+            self._set_category_priority(set_info),
+            self._set_resolution_value(set_info),
+            SET_PRIORITY[set_info["type"]],
+        )
+
     def _declare_sets_for_player(self, player):
         if self.set_declaration_done[player]:
             return
@@ -795,6 +801,7 @@ class BalootMultiAgentEnv(gym.Env):
             "category": self._set_category(set_info["type"]),
             "value": self._set_resolution_value(set_info),
             "priority": SET_PRIORITY[set_info["type"]],
+            "key": self._set_resolution_key(set_info),
         }
 
     def _resolve_sets_by_second_trick_reveals(self, start_player):
@@ -824,9 +831,18 @@ class BalootMultiAgentEnv(gym.Env):
 
             best_revealed_player, best_revealed = max(
                 self.set_resolution_reveals.items(),
-                key=lambda item: (item[1]["value"], item[1]["priority"]),
+                key=lambda item: item[1]["key"],
             )
-            if best_revealed["value"] == self.ACE_SET_RESOLUTION_VALUE:
+            unrevealed_candidates = [
+                set_info
+                for candidate_player, set_info in candidates
+                if candidate_player not in self.set_resolution_reveals
+            ]
+            best_unrevealed_key = max(
+                (self._set_resolution_key(set_info) for set_info in unrevealed_candidates),
+                default=None,
+            )
+            if best_unrevealed_key is None or best_revealed["key"] > best_unrevealed_key:
                 self._filter_declared_sets_to_team(team(best_revealed_player))
                 return
 
@@ -845,14 +861,10 @@ class BalootMultiAgentEnv(gym.Env):
                     continue
 
                 current_key = (
-                    self._set_category_priority(set_info),
-                    self._set_resolution_value(set_info),
-                    SET_PRIORITY[set_info["type"]],
+                    self._set_resolution_key(set_info)
                 )
                 best_key = (
-                    self._set_category_priority(best_set),
-                    self._set_resolution_value(best_set),
-                    SET_PRIORITY[best_set["type"]],
+                    self._set_resolution_key(best_set)
                 )
                 if current_key > best_key:
                     best_set, best_player = set_info, player

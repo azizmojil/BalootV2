@@ -15,6 +15,7 @@ class BalootMultiAgentEnv(gym.Env):
     INFERENCE_EPSILON = 1e-3
     SET_INFERENCE_STRENGTH = 2.0
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
+    SET_CATEGORY_PRIORITY = {"Sera": 1, "Khamseen": 2, "Mia": 3, "Arbamia": 4}
     OBSERVATION_SCHEMA = {
         # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
         "player_roles": (22,),
@@ -107,7 +108,10 @@ class BalootMultiAgentEnv(gym.Env):
         self.declared_sets = np.zeros((4, 4), dtype=np.float32)
         self.revealed_sets = np.zeros((4, 5), dtype=np.float32)
         self.declared_sets_info = None
+        self.set_declaration_done = [False] * 4
         self.sets_resolved = False
+        self.set_resolution_reveals = {}
+        self.public_revealed_set_keys = [set() for _ in range(4)]
         self.resolution_logs = []
         self.balot = [False] * 4
         self.detect_balot = [None] * 4
@@ -479,21 +483,12 @@ class BalootMultiAgentEnv(gym.Env):
     def _playing_step(self, agent, action):
         canonical = create_deck()
         if self.trick_count == 0:
-            sets = detect_sets(self.hands[agent])
-            set_type_to_index = {"Sera": 0, "Khamseen": 1, "Mia_c": 2, "Mia_s": 2, "Arbamia": 3}
-            for s in sets:
-                set_index = set_type_to_index.get(s["type"])
-                if set_index is None:
-                    raise ValueError(f"Unknown set type: {s['type']}")
-                self.declared_sets[agent, set_index] += 1.0
+            self._declare_sets_for_player(agent)
         if self.trick_count == 1:
+            if not self.sets_resolved:
+                self._resolve_sets_by_second_trick_reveals(agent)
             for s in self.declared_sets_info[agent]:
-                sets_list = list(SET_PRIORITY.keys())
-                i = sets_list.index(s["type"])
-                self.revealed_sets[agent, i] += 1.0
-                for card in s["cards"]:
-                    idx = canonical.index(card)
-                    self._set_known_card_owner(idx, agent)
+                self._reveal_declared_set(agent, s, canonical)
 
         chosen_card = canonical[action]
         had_trick_suit = (
@@ -548,7 +543,7 @@ class BalootMultiAgentEnv(gym.Env):
             win_team = team(winner)
             self.team_bant[win_team] += trick_points
             self.team_tricks[win_team] += 1
-            
+
             trick_rewards_arr = calculate_trick_reward(self.last_trick, winner, self.game_type, self.trump_suit)
             self.last_trick_reward = {f"player_{i}": trick_rewards_arr[i] for i in range(4)}
 
@@ -560,10 +555,9 @@ class BalootMultiAgentEnv(gym.Env):
 
             if self.trick_count >= 8:
                 self.team_bant[win_team] += 10
-                
-        if self.trick_count == 1 and not getattr(self, 'sets_resolved', False):
-            if self.declared_sets_info and self.declared_sets_info[self.current_agent]:
-                self._resolve_sets(self.current_agent)
+
+            if self.trick_count == 1 and not self.sets_resolved:
+                self._resolve_sets_after_first_trick()
 
     def _evaluate_trick_winner(self):
         lead = self.trick_suit
@@ -585,7 +579,7 @@ class BalootMultiAgentEnv(gym.Env):
         obs_dict = self.get_observation()
         if obs_dict["action_mask"][action] == 0:
             raise ValueError(f"Agent {acting_agent} attempted invalid action {action} in phase '{self.phase}'.")
-            
+
         if self.phase == "bidding":
             bidding_reward = calculate_bidding_reward(self, acting_agent, action)
             self._bidding_step(acting_agent, action)
@@ -606,7 +600,7 @@ class BalootMultiAgentEnv(gym.Env):
                 rewards = self._compute_score()
                 self._update_cumulative_scores()
                 dones = {f"player_{i}": self.match_over for i in range(4)}
-                
+
                 end_of_round_rewards_arr = calculate_end_of_round_reward(self)
                 for i in range(4):
                     rewards[f"player_{i}"] += end_of_round_rewards_arr[i]
@@ -634,6 +628,9 @@ class BalootMultiAgentEnv(gym.Env):
         return obs_dict, rewards, dones, infos
 
     def _compute_score(self):
+        if not self.sets_resolved:
+            self._resolve_sets_by_full_information()
+
         team_set_bonus = [0, 0]
         team_balot_bonus = [0, 0]
         buyer_team = team(self.buyer)
@@ -720,64 +717,204 @@ class BalootMultiAgentEnv(gym.Env):
                 and self.cumulative_scores[0] != self.cumulative_scores[1]:
             self.match_over = True
 
-    def _resolve_sets(self, declaring_agent):
+    def _resolve_sets(self, declaring_agent=None):
+        self._resolve_sets_by_full_information()
+
+    def _set_category(self, set_type):
+        if set_type in ("Mia_c", "Mia_s"):
+            return "Mia"
+        return set_type
+
+    def _set_category_priority(self, set_info):
+        category = self._set_category(set_info["type"])
+        if category not in self.SET_CATEGORY_PRIORITY:
+            raise ValueError(
+                f"Unknown set category '{category}' from set type '{set_info['type']}'. "
+                f"Valid categories: {list(self.SET_CATEGORY_PRIORITY.keys())}"
+            )
+        return self.SET_CATEGORY_PRIORITY[category]
+
+    def _set_resolution_value(self, set_info):
+        if not set_info["cards"]:
+            raise ValueError(f"Set {set_info['type']} has no cards")
+        return max(card_value(card) for card in set_info["cards"])
+
+    def _set_resolution_key(self, set_info):
+        return (
+            self._set_category_priority(set_info),
+            SET_PRIORITY[set_info["type"]],
+            self._set_resolution_value(set_info),
+        )
+
+    def _set_value_label(self, value):
+        return {11: 'J', 12: 'Q', 13: 'K', 14: 'A'}.get(value, str(value))
+
+    def _declare_sets_for_player(self, player):
+        if self.set_declaration_done[player]:
+            return
+
+        set_type_to_index = {"Sera": 0, "Khamseen": 1, "Mia_c": 2, "Mia_s": 2, "Arbamia": 3}
+        for set_info in self.declared_sets_info[player]:
+            set_index = set_type_to_index.get(set_info["type"])
+            if set_index is None:
+                raise ValueError(
+                    f"Unknown set type for player {player}: {set_info['type']}. "
+                    f"Valid types: {list(set_type_to_index.keys())}"
+                )
+            self.declared_sets[player, set_index] += 1.0
+        self.set_declaration_done[player] = True
+
+    def _filter_declared_sets_to_team(self, winning_team):
+        revealed = [[] for _ in range(4)]
+        for player, sets in enumerate(self.declared_sets_info):
+            if team(player) == winning_team:
+                revealed[player] = [set_info.copy() for set_info in sets]
+
+        self.declared_sets_info = revealed
         self.sets_resolved = True
+
+    def _clear_declared_sets(self):
+        self.declared_sets_info = [[] for _ in range(4)]
+        self.sets_resolved = True
+
+    def _top_set_candidates(self):
+        candidates = []
+        top_priority = None
+        for player, sets in enumerate(self.declared_sets_info):
+            for set_info in sets:
+                priority = self._set_category_priority(set_info)
+                if top_priority is None or priority > top_priority:
+                    candidates = [(player, set_info)]
+                    top_priority = priority
+                elif priority == top_priority:
+                    candidates.append((player, set_info))
+        return candidates
+
+    def _resolve_sets_after_first_trick(self):
+        candidates = self._top_set_candidates()
+        if not candidates:
+            self._clear_declared_sets()
+            return
+
+        candidate_teams = {team(player) for player, _ in candidates}
+        if len(candidate_teams) == 1:
+            self._filter_declared_sets_to_team(candidate_teams.pop())
+
+    def _record_set_resolution_reveal(self, player, set_info):
+        canonical = create_deck()
+        self._reveal_declared_set(player, set_info, canonical)
+        value = self._set_resolution_value(set_info)
+        category = self._set_category(set_info["type"])
+        if self.set_resolution_reveals:
+            best_revealed = max(self.set_resolution_reveals.values(), key=lambda reveal: reveal["key"])
+            if self._set_resolution_key(set_info) > best_revealed["key"]:
+                self.resolution_logs.append(f"Player {player} replies with {self._set_value_label(value)}.")
+            else:
+                self.resolution_logs.append(
+                    f"Player {player} cannot beat {self._set_value_label(best_revealed['value'])}."
+                )
+        else:
+            self.resolution_logs.append(
+                f"Player {player} asks with {self._set_value_label(value)} for {category}."
+            )
+        self.set_resolution_reveals[player] = {
+            "type": set_info["type"],
+            "category": category,
+            "value": value,
+            "priority": SET_PRIORITY[set_info["type"]],
+            "key": self._set_resolution_key(set_info),
+        }
+
+    def _revealed_set_key(self, set_info):
+        return (
+            set_info["type"],
+            tuple(sorted(tuple(card) for card in set_info["cards"])),
+        )
+
+    def _reveal_declared_set(self, player, set_info, canonical=None):
+        if canonical is None:
+            canonical = create_deck()
+
+        reveal_key = self._revealed_set_key(set_info)
+        if reveal_key in self.public_revealed_set_keys[player]:
+            return
+
+        sets_list = list(SET_PRIORITY.keys())
+        i = sets_list.index(set_info["type"])
+        self.revealed_sets[player, i] += 1.0
+        self.public_revealed_set_keys[player].add(reveal_key)
+
+        for card in set_info["cards"]:
+            idx = canonical.index(card)
+            self._set_known_card_owner(idx, player)
+
+    def _resolve_sets_by_second_trick_reveals(self, start_player):
+        candidates = self._top_set_candidates()
+        if not candidates:
+            self._clear_declared_sets()
+            return
+
+        candidate_players = {player for player, _ in candidates}
+        turn_sequence = [(start_player + turn_offset) % 4 for turn_offset in range(4)]
+
+        for player in turn_sequence:
+            if player not in candidate_players or player in self.set_resolution_reveals:
+                continue
+
+            player_sets = [set_info for candidate_player, set_info in candidates if candidate_player == player]
+            if not player_sets:
+                continue
+            best_set = max(
+                player_sets,
+                key=self._set_resolution_key,
+            )
+            self._record_set_resolution_reveal(player, best_set)
+
+            best_revealed_player, best_revealed = max(
+                self.set_resolution_reveals.items(),
+                key=lambda item: item[1]["key"],
+            )
+            unrevealed_candidates = [
+                set_info
+                for candidate_player, set_info in candidates
+                if candidate_player not in self.set_resolution_reveals
+            ]
+            best_unrevealed_key = (
+                max(self._set_resolution_key(set_info) for set_info in unrevealed_candidates)
+                if unrevealed_candidates else None
+            )
+            if best_unrevealed_key is None or best_revealed["key"] > best_unrevealed_key:
+                self._filter_declared_sets_to_team(team(best_revealed_player))
+                return
+
+            if all(candidate_player in self.set_resolution_reveals for candidate_player, _ in candidates):
+                self._resolve_sets_by_full_information()
+                return
+
+    def _resolve_sets_by_full_information(self):
         best_set = None
         best_player = None
 
-        highest_type = None
-        for p, sets in enumerate(self.declared_sets_info):
-            for s in sets:
-                if highest_type is None or SET_PRIORITY[s["type"]] > SET_PRIORITY[highest_type]:
-                    highest_type = s["type"]
+        for player, sets in enumerate(self.declared_sets_info):
+            for set_info in sets:
+                if best_set is None:
+                    best_set, best_player = set_info, player
+                    continue
 
-        if highest_type is None:
-            self.declared_sets_info = [[] for _ in range(4)]
-            return
+                current_key = self._set_resolution_key(set_info)
+                best_key = self._set_resolution_key(best_set)
+                if current_key > best_key:
+                    best_set, best_player = set_info, player
 
-        contenders = []
-        for p, sets in enumerate(self.declared_sets_info):
-            for s in sets:
-                if s["type"] == highest_type:
-                    contenders.append((p, s))
-
-        teams_contending = set(team(p) for p, s in contenders)
-
-        if len(teams_contending) <= 1:
-            best_set, best_player = max(contenders, key=lambda x: max(card_value(c) for c in x[1]["cards"]))
+        if best_player is None:
+            self._clear_declared_sets()
         else:
-            trick_order = [(self.trick_leader + i) % 4 for i in range(4)]
-            contenders.sort(key=lambda x: trick_order.index(x[0]))
-            
-            first_contender = contenders[0]
-            first_p = first_contender[0]
-            first_max_val = max(card_value(c) for c in first_contender[1]["cards"])
-            first_rank_str = {11: 'J', 12: 'Q', 13: 'K', 14: 'A'}.get(first_max_val, str(first_max_val))
-            
-            self.resolution_logs.append(f"Player {first_p} asks with {first_rank_str} for {highest_type}.")
-            best_set, best_player = first_contender
-            best_max_val = first_max_val
-            
-            for p, s in contenders[1:]:
-                if team(p) != team(first_p):
-                    p_max_val = max(card_value(c) for c in s["cards"])
-                    p_rank_str = {11: 'J', 12: 'Q', 13: 'K', 14: 'A'}.get(p_max_val, str(p_max_val))
-                    if p_max_val > best_max_val:
-                        self.resolution_logs.append(f"Player {p} replies with {p_rank_str}.")
-                        best_set, best_player = s, p
-                        best_max_val = p_max_val
-                    else:
-                        self.resolution_logs.append(f"Player {p} cannot beat {first_rank_str}.")
-
-        winning_team = team(best_player)
-        revealed = [[] for _ in range(4)]
-        for p, sets in enumerate(self.declared_sets_info):
-            if team(p) == winning_team:
-                revealed[p] = [s.copy() for s in sets]
-
-        self.declared_sets_info = revealed
+            self._filter_declared_sets_to_team(team(best_player))
 
     def _hidden_declared_set_types(self, player):
+        if not self.sets_resolved:
+            return []
+
         declared = self.declared_sets[player]
         revealed_names = list(SET_PRIORITY.keys())
         revealed = {
@@ -854,7 +991,11 @@ class BalootMultiAgentEnv(gym.Env):
                      if self.remaining_cards[c] == 1
                      and np.isclose(self.card_ownership[c, player, agent], 1.0)]
 
-            pool_idxs = known + hidden
+            played_by_player = [c for c in range(32)
+                               if self.remaining_cards[c] == 0
+                               and np.isclose(self.card_ownership[c, player, agent], 1.0)]
+
+            pool_idxs = known + hidden + played_by_player
             pool_cards = [canonical_deck[c] for c in pool_idxs]
             candidates = self._possible_declared_sets(pool_cards, hidden_types)
             if not candidates:

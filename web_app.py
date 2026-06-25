@@ -182,7 +182,14 @@ def get_state():
             "text": translate_action(action_index),
             "action_index": action_index if is_playable_card else None
         })
-    
+
+    # Provide opponent hand card counts for the table layout
+    state["opponent_hand_counts"] = {
+        "right": len(env.hands[(human_id + 1) % 4]),
+        "teammate": len(env.hands[(human_id + 2) % 4]),
+        "left": len(env.hands[(human_id + 3) % 4]),
+    }
+
     return jsonify(state)
 
 @app.route('/action', methods=['POST'])

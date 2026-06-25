@@ -104,7 +104,7 @@ def allowed_doubling_action(buy_type, buyer, agent, cumulative_scores, current_d
             if agent == buyer:
                 mask[40] = 1
         elif current_doubling_state == "Three":
-            if agent == last_doubler:
+            if agent_team != buyer_team:
                 mask[41] = 1
         elif current_doubling_state == "Four":
             if agent == buyer:

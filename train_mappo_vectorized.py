@@ -3,6 +3,14 @@ import os
 import warnings
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# Prevent OpenBLAS/NumPy from spawning 64+ threads per worker!
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["LLVM_NUM_THREADS"] = "1"
+
 warnings.filterwarnings("ignore")
 
 import datetime
@@ -31,7 +39,7 @@ config = {
     "gae_lambda": 0.95,
     "start_entropy": 0.10,
     "end_entropy": 0.05,
-    "num_workers": 128  # Utilizing your 128 vCPUs!
+    "num_workers": 96  # Reduced slightly to prevent OS thread limits (was 128)
 }
 
 NUM_PLAYERS = 4
@@ -47,6 +55,8 @@ def init_worker():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     import tensorflow as tf
     tf.config.set_visible_devices([], 'GPU') # Force workers to use CPU
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+    tf.config.threading.set_inter_op_parallelism_threads(1)
     
     worker_env = BalootMultiAgentEnv()
     sample_obs = worker_env.reset()
@@ -165,6 +175,8 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Train MAPPO Agent for Baloot")
     parser.add_argument("--resume", type=str, default=None)
+    parser.add_argument("--start_ep", type=int, default=0, help="Episode to start from")
+    parser.add_argument("--start_update", type=int, default=0, help="Update count to start from")
     args = parser.parse_args()
 
     # Create dummy env to infer shapes
@@ -192,11 +204,13 @@ if __name__ == "__main__":
 
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=config["num_workers"], initializer=init_worker)
     
-    update_count = 0
-    episodes_completed = 0
+    update_count = args.start_update
+    episodes_completed = args.start_ep
 
     print(f"Starting Vectorized Collection with {config['num_workers']} workers...")
     pbar = tqdm(total=config["num_episodes"], desc="Training MAPPO Vectorized", unit="ep")
+    if episodes_completed > 0:
+        pbar.update(episodes_completed)
     
     while episodes_completed < config["num_episodes"]:
         agent.entropy_coef = get_entropy_coef(episodes_completed)

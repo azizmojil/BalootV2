@@ -2,10 +2,18 @@ import sys
 import os
 import warnings
 import argparse
-import numpy as np
+import datetime
 
 # Suppress TF logs and warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# Prevent OpenBLAS/NumPy from spawning 64+ threads per worker!
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+import numpy as np
 warnings.filterwarnings("ignore")
 
 import tensorflow as tf
@@ -36,6 +44,8 @@ def init_worker():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     import tensorflow as tf
     tf.config.set_visible_devices([], 'GPU') # Force workers to use CPU
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+    tf.config.threading.set_inter_op_parallelism_threads(1)
     
     worker_env = BalootMultiAgentEnv()
     sample_obs = worker_env.reset()

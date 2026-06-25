@@ -4,9 +4,12 @@ def convert_bant(bant, game_type):
     if game_type == "Hukoom":
         rem = bant % 10
         tens = bant // 10
-        rounded = tens * 10 if rem == 5 else (tens *
-                                              10 if (bant - tens * 10) <= ((tens + 1) * 10 - bant)
-                                              else (tens + 1) * 10)
+        lower = tens * 10
+        upper = lower + 10
+        if rem == 5 or (bant - lower) <= (upper - bant):
+            rounded = lower
+        else:
+            rounded = upper
         return rounded // 10
 
     rem = bant % 10

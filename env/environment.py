@@ -774,11 +774,11 @@ class BalootMultiAgentEnv(gym.Env):
 
     def _top_set_candidates(self):
         candidates = []
-        top_priority = 0
+        top_priority = None
         for player, sets in enumerate(self.declared_sets_info):
             for set_info in sets:
                 priority = self._set_category_priority(set_info)
-                if priority > top_priority:
+                if top_priority is None or priority > top_priority:
                     candidates = [(player, set_info)]
                     top_priority = priority
                 elif priority == top_priority:
@@ -838,9 +838,9 @@ class BalootMultiAgentEnv(gym.Env):
                 for candidate_player, set_info in candidates
                 if candidate_player not in self.set_resolution_reveals
             ]
-            best_unrevealed_key = max(
-                (self._set_resolution_key(set_info) for set_info in unrevealed_candidates),
-                default=None,
+            best_unrevealed_key = (
+                max(self._set_resolution_key(set_info) for set_info in unrevealed_candidates)
+                if unrevealed_candidates else None
             )
             if best_unrevealed_key is None or best_revealed["key"] > best_unrevealed_key:
                 self._filter_declared_sets_to_team(team(best_revealed_player))
@@ -860,12 +860,8 @@ class BalootMultiAgentEnv(gym.Env):
                     best_set, best_player = set_info, player
                     continue
 
-                current_key = (
-                    self._set_resolution_key(set_info)
-                )
-                best_key = (
-                    self._set_resolution_key(best_set)
-                )
+                current_key = self._set_resolution_key(set_info)
+                best_key = self._set_resolution_key(best_set)
                 if current_key > best_key:
                     best_set, best_player = set_info, player
 

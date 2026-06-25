@@ -13,6 +13,8 @@ class BalootMultiAgentEnv(gym.Env):
     NUM_PLAYERS = OBSERVATION_NUM_PLAYERS
     BIDDING_HISTORY_LENGTH = OBSERVATION_BIDDING_HISTORY_LENGTH
     BIDDING_HISTORY_FEATURES = OBSERVATION_BIDDING_HISTORY_FEATURES
+    TRICK_HISTORY_LENGTH = OBSERVATION_TRICK_HISTORY_LENGTH
+    TRICK_HISTORY_FEATURES = OBSERVATION_TRICK_HISTORY_FEATURES
     INFERENCE_EPSILON = 1e-3
     SET_INFERENCE_STRENGTH = 2.0
     OBSERVATION_SCHEMA = OBSERVATION_SCHEMA
@@ -226,6 +228,20 @@ class BalootMultiAgentEnv(gym.Env):
             for player in order
         ]).astype(np.float32)
 
+    def _trick_history_features(self):
+        features = []
+        entries = list(self.trick_history[-self.TRICK_HISTORY_LENGTH:])
+        for entry in entries:
+            features.append(
+                self._cards_by_player_order(
+                    entry["cards"],
+                    entry.get("order", self._default_player_order()),
+                )
+            )
+        while len(features) < self.TRICK_HISTORY_LENGTH:
+            features.append(np.zeros(128, dtype=np.float32))
+        return np.concatenate(features).astype(np.float32)
+
     def _bidding_history_features(self, observer):
         features = []
         entries = list(self.bidding_history[-self.BIDDING_HISTORY_LENGTH:])
@@ -297,6 +313,7 @@ class BalootMultiAgentEnv(gym.Env):
         current_order = self.trick_order
         trick_feat = self._cards_by_player_order(self.current_trick, current_order)
         last_trick_feat = self._cards_by_player_order(self.last_trick, self.last_trick_order)
+        trick_history_feat = self._trick_history_features()
 
         declared = (self._relative_rows(self.declared_sets, ag) / 2).astype(np.float32).flatten()
         revealed = (self._relative_rows(self.revealed_sets, ag) / 2).astype(np.float32).flatten()
@@ -314,6 +331,7 @@ class BalootMultiAgentEnv(gym.Env):
                'cards_ownership': own_knowledge_flat,
                'trick': trick_feat,
                'last_trick': last_trick_feat,
+               'trick_history': trick_history_feat,
                'declared_sets': declared,
                'revealed_sets': revealed,
                'bidding_history': self._bidding_history_features(ag),
@@ -505,7 +523,11 @@ class BalootMultiAgentEnv(gym.Env):
             self.last_trick_order = list(self.trick_order)
 
             winner = self._evaluate_trick_winner()
-            self.trick_history.append({"cards": list(self.current_trick), "winner": winner})
+            self.trick_history.append({
+                "cards": list(self.current_trick),
+                "order": list(self.trick_order),
+                "winner": winner,
+            })
             trick_points = sum((SUN_POINTS[c[1]] if self.game_type == "Sun" or c[0] != self.trump_suit
                                 else HUKOOM_POINTS[c[1]]) for c in self.current_trick)
 

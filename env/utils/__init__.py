@@ -51,6 +51,8 @@ from env.utils.observation_validation import (
     OBSERVATION_BIDDING_HISTORY_LENGTH,
     OBSERVATION_NUM_PLAYERS,
     OBSERVATION_SCHEMA,
+    OBSERVATION_TRICK_HISTORY_FEATURES,
+    OBSERVATION_TRICK_HISTORY_LENGTH,
     validate_observation,
 )
 from env.utils.set_detection import (
@@ -109,6 +111,8 @@ __all__ = [
     "OBSERVATION_BIDDING_HISTORY_LENGTH",
     "OBSERVATION_NUM_PLAYERS",
     "OBSERVATION_SCHEMA",
+    "OBSERVATION_TRICK_HISTORY_FEATURES",
+    "OBSERVATION_TRICK_HISTORY_LENGTH",
     "one_hot_card",
     "one_hot_index",
     "pad_array",

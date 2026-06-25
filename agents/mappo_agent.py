@@ -23,6 +23,8 @@ class MAPPOAgent:
         with self.strategy.scope():
             self.model = model_builder(local_obs_dim, global_state_dim, act_dim)
             self.optimizer = Adam(learning_rate=lr)
+            if hasattr(self.optimizer, 'build'):
+                self.optimizer.build(self.model.trainable_variables)
             
         self.value_func = self.get_value_for_single_obs
         self.last_update_stats = {}

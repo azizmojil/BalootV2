@@ -6,7 +6,8 @@ def convert_bant(bant, game_type):
         tens = bant // 10
         lower = tens * 10
         upper = lower + 10
-        if rem == 5 or (bant - lower) <= (upper - bant):
+        rounds_down = (bant - lower) <= (upper - bant)
+        if rem == 5 or rounds_down:
             rounded = lower
         else:
             rounded = upper

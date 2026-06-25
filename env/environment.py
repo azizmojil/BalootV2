@@ -16,7 +16,7 @@ class BalootMultiAgentEnv(gym.Env):
     SET_INFERENCE_STRENGTH = 2.0
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
     SET_CATEGORY_PRIORITY = {"Sera": 1, "Khamseen": 2, "Mia": 3, "Arbamia": 4}
-    ACE_SET_RESOLUTION_VALUE = card_value((None, "A"))
+    ACE_SET_RESOLUTION_VALUE = max(card_value((suit, "A")) for suit in SUITS)
     OBSERVATION_SCHEMA = {
         # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
         "player_roles": (22,),
@@ -733,7 +733,7 @@ class BalootMultiAgentEnv(gym.Env):
     def _set_category_priority(self, set_info):
         category = self._set_category(set_info["type"])
         if category not in self.SET_CATEGORY_PRIORITY:
-            raise ValueError(f"Unknown set category: {category}")
+            raise ValueError(f"Unknown set category '{category}' from set type '{set_info['type']}'")
         return self.SET_CATEGORY_PRIORITY[category]
 
     def _set_resolution_value(self, set_info):
@@ -804,13 +804,15 @@ class BalootMultiAgentEnv(gym.Env):
             return
 
         candidate_players = {player for player, _ in candidates}
-        ordered_players = [(start_player + offset) % 4 for offset in range(4)]
+        turn_sequence = [(start_player + offset) % 4 for offset in range(4)]
 
-        for player in ordered_players:
+        for player in turn_sequence:
             if player not in candidate_players or player in self.set_resolution_reveals:
                 continue
 
             player_sets = [set_info for candidate_player, set_info in candidates if candidate_player == player]
+            if not player_sets:
+                continue
             best_set = max(
                 player_sets,
                 key=lambda set_info: (

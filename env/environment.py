@@ -16,6 +16,7 @@ class BalootMultiAgentEnv(gym.Env):
     SET_INFERENCE_STRENGTH = 2.0
     SET_TYPE_BY_INDEX = ("Sera", "Khamseen", "Mia", "Arbamia")
     SET_CATEGORY_PRIORITY = {"Sera": 1, "Khamseen": 2, "Mia": 3, "Arbamia": 4}
+    ACE_SET_RESOLUTION_VALUE = card_value((None, "A"))
     OBSERVATION_SCHEMA = {
         # 5 relative player indicators: dealer, teammate, buyer, trick leader, last doubler.
         "player_roles": (22,),
@@ -730,9 +731,14 @@ class BalootMultiAgentEnv(gym.Env):
         return set_type
 
     def _set_category_priority(self, set_info):
-        return self.SET_CATEGORY_PRIORITY[self._set_category(set_info["type"])]
+        category = self._set_category(set_info["type"])
+        if category not in self.SET_CATEGORY_PRIORITY:
+            raise ValueError(f"Unknown set category: {category}")
+        return self.SET_CATEGORY_PRIORITY[category]
 
     def _set_resolution_value(self, set_info):
+        if not set_info["cards"]:
+            raise ValueError(f"Set {set_info['type']} has no cards")
         return max(card_value(card) for card in set_info["cards"])
 
     def _declare_sets_for_player(self, player):
@@ -818,7 +824,7 @@ class BalootMultiAgentEnv(gym.Env):
                 self.set_resolution_reveals.items(),
                 key=lambda item: (item[1]["value"], item[1]["priority"]),
             )
-            if best_revealed["value"] == 14:
+            if best_revealed["value"] == self.ACE_SET_RESOLUTION_VALUE:
                 self._filter_declared_sets_to_team(team(best_revealed_player))
                 return
 

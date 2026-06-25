@@ -6,7 +6,7 @@ from utils import require_positive_int
 class MAPPOAgent:
     def __init__(self, local_obs_dim, global_state_dim, act_dim, model_builder,
                  lr=3e-4, gamma=0.99, clip_range=0.2, epochs=10, 
-                 batch_size=64, value_coef=0.5, entropy_coef=0.01, gae_lambda=0.95):
+                 batch_size=64, value_coef=0.5, entropy_coef=0.01, gae_lambda=0.95, strategy=None):
         self.act_dim = require_positive_int(act_dim, "act_dim")
         self.local_obs_dim = require_positive_int(local_obs_dim, "local_obs_dim")
         self.global_state_dim = require_positive_int(global_state_dim, "global_state_dim")
@@ -18,8 +18,12 @@ class MAPPOAgent:
         self.value_coef = value_coef
         self.entropy_coef = entropy_coef
         
-        self.model = model_builder(local_obs_dim, global_state_dim, act_dim)
-        self.optimizer = Adam(learning_rate=lr)
+        self.strategy = strategy if strategy is not None else tf.distribute.get_strategy()
+        
+        with self.strategy.scope():
+            self.model = model_builder(local_obs_dim, global_state_dim, act_dim)
+            self.optimizer = Adam(learning_rate=lr)
+            
         self.value_func = self.get_value_for_single_obs
         self.last_update_stats = {}
 
@@ -124,7 +128,8 @@ class MAPPOAgent:
             (local_states, global_states, masks, actions, old_log_probs, old_values, advantages, returns)
         ).shuffle(buffer_size=1024).batch(self.batch_size)
 
-        @tf.function
+        dist_dataset = self.strategy.experimental_distribute_dataset(dataset)
+
         def train_step(batch_local, batch_global, batch_masks, batch_actions, batch_old_log_probs, batch_old_values, batch_advantages, batch_returns):
             with tf.GradientTape() as tape:
                 logits, new_values = self.model([batch_local, batch_global], training=True)
@@ -160,18 +165,33 @@ class MAPPOAgent:
                 entropy = tf.reduce_mean(entropy_per_step)
                 
                 loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
+                loss = loss / self.strategy.num_replicas_in_sync
                 
             grads = tape.gradient(loss, self.model.trainable_variables)
             grads, _ = tf.clip_by_global_norm(grads, 0.5)
             self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+            
+            loss = loss * self.strategy.num_replicas_in_sync
             return loss, policy_loss, value_loss, entropy, approx_kl, clip_fraction
+
+        @tf.function
+        def distributed_train_step(batch_data):
+            per_replica_results = self.strategy.run(train_step, args=batch_data)
+            return (
+                self.strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_results[0], axis=None),
+                self.strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_results[1], axis=None),
+                self.strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_results[2], axis=None),
+                self.strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_results[3], axis=None),
+                self.strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_results[4], axis=None),
+                self.strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_results[5], axis=None)
+            )
 
         total_loss, total_policy_loss, total_value_loss, total_entropy = 0.0, 0.0, 0.0, 0.0
         total_kl, total_clip_fraction = 0.0, 0.0
         num_batches = 0
         for epoch in range(self.epochs):
-            for batch_data in dataset:
-                loss, policy_loss, value_loss, entropy, approx_kl, clip_fraction = train_step(*batch_data)
+            for batch_data in dist_dataset:
+                loss, policy_loss, value_loss, entropy, approx_kl, clip_fraction = distributed_train_step(batch_data)
                 total_loss += loss
                 total_policy_loss += policy_loss
                 total_value_loss += value_loss

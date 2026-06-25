@@ -112,11 +112,14 @@ if __name__ == "__main__":
     sample_obs = env.reset()
     local_obs_dim, global_state_dim, act_dim = infer_model_dimensions(env, sample_obs)
 
+    strategy = tf.distribute.MirroredStrategy()
+    print(f"Number of GPUs being used: {strategy.num_replicas_in_sync}")
+
     agent = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network,
                        lr=config["start_lr"], gamma=config["gamma"],
                        clip_range=config["clip_range"], epochs=config["epochs"],
                        batch_size=config["batch_size"], gae_lambda=config["gae_lambda"],
-                       entropy_coef=config["start_entropy"])
+                       entropy_coef=config["start_entropy"], strategy=strategy)
 
     if args.resume:
         agent.model.load_weights(args.resume)

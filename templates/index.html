@@ -691,11 +691,18 @@
                     if (state.last_round_score) showScoreBurst(state.last_round_score);
                 }
 
-                // ── Opponent hands (face-down cards) ──
+                // ── Opponent hands ──
                 const counts = state.opponent_hand_counts || {};
-                document.getElementById('hand-teammate').innerHTML = renderCardBacks(counts.teammate || 0);
-                document.getElementById('hand-left').innerHTML    = renderCardBacks(counts.left || 0);
-                document.getElementById('hand-right').innerHTML   = renderCardBacks(counts.right || 0);
+                const revealed = state.opponent_hands_revealed || {};
+                
+                ['teammate', 'left', 'right'].forEach(pos => {
+                    const el = document.getElementById(`hand-${pos}`);
+                    if (revealed[pos]) {
+                        el.innerHTML = revealed[pos].map(cardStr => renderPixelCard(cardStr, 'mini-card')).join('');
+                    } else {
+                        el.innerHTML = renderCardBacks(counts[pos] || 0);
+                    }
+                });
 
                 // ── Phase-specific center ──
                 if (state.phase === 'bidding') {

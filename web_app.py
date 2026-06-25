@@ -264,6 +264,15 @@ def get_state():
         "teammate": len(env.hands[(human_id + 2) % 4]),
         "left": len(env.hands[(human_id + 3) % 4]),
     }
+    
+    def get_hand_strings(p_id):
+        return [translate_action(int(deck.index(c))) for c in sort_hand_canonical(env.hands[p_id])]
+
+    state["opponent_hands_revealed"] = {
+        "right": get_hand_strings((human_id + 1) % 4),
+        "teammate": get_hand_strings((human_id + 2) % 4),
+        "left": get_hand_strings((human_id + 3) % 4),
+    }
 
     return jsonify(state)
 

@@ -249,7 +249,7 @@ if __name__ == "__main__":
             'Steps': collected_steps
         })
 
-        if update_count % 25 == 0:
+        if update_count % 5 == 0:
             agent.model.save_weights(os.path.join(model_dir, f"mappo_update_{update_count}.h5"))
 
     pbar.close()

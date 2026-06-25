@@ -1,6 +1,6 @@
 import numpy as np
 
-from env.constants import BID_ACTIONS, RANKS, SUITS
+from env.constants import BID_ACTIONS, NUM_PLAYERS, RANKS, SUITS
 
 
 def create_deck():
@@ -51,7 +51,7 @@ def relative_player_index(player, observer):
     return (player - observer) % 4
 
 
-def relative_player_order(observer, num_players=4):
+def relative_player_order(observer, num_players=NUM_PLAYERS):
     return [(observer + offset) % num_players for offset in range(num_players)]
 
 
@@ -118,6 +118,7 @@ def translate_action(action):
 
 __all__ = [
     "BID_ACTIONS",
+    "NUM_PLAYERS",
     "create_deck",
     "full_card_mask",
     "sort_hand_canonical",

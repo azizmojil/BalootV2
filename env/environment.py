@@ -102,7 +102,6 @@ class BalootMultiAgentEnv(gym.Env):
         self.current_agent = self.trick_leader
         self.current_trick = [None] * 4
         self.last_trick = [None] * 4
-        # Completed trick play order for last_trick; None until a trick completes.
         self.last_trick_order = None
         self.trick_history = []
         self.bidding_history = []
@@ -113,6 +112,7 @@ class BalootMultiAgentEnv(gym.Env):
         self.sets_resolved = False
         self.set_resolution_reveals = {}
         self.public_revealed_set_keys = [set() for _ in range(4)]
+        self.resolution_logs = []
         self.balot = [False] * 4
         self.detect_balot = [None] * 4
         self.team_bant = [0, 0]
@@ -543,7 +543,7 @@ class BalootMultiAgentEnv(gym.Env):
             win_team = team(winner)
             self.team_bant[win_team] += trick_points
             self.team_tricks[win_team] += 1
-            
+
             trick_rewards_arr = calculate_trick_reward(self.last_trick, winner, self.game_type, self.trump_suit)
             self.last_trick_reward = {f"player_{i}": trick_rewards_arr[i] for i in range(4)}
 
@@ -579,7 +579,7 @@ class BalootMultiAgentEnv(gym.Env):
         obs_dict = self.get_observation()
         if obs_dict["action_mask"][action] == 0:
             raise ValueError(f"Agent {acting_agent} attempted invalid action {action} in phase '{self.phase}'.")
-            
+
         if self.phase == "bidding":
             bidding_reward = calculate_bidding_reward(self, acting_agent, action)
             self._bidding_step(acting_agent, action)
@@ -600,7 +600,7 @@ class BalootMultiAgentEnv(gym.Env):
                 rewards = self._compute_score()
                 self._update_cumulative_scores()
                 dones = {f"player_{i}": self.match_over for i in range(4)}
-                
+
                 end_of_round_rewards_arr = calculate_end_of_round_reward(self)
                 for i in range(4):
                     rewards[f"player_{i}"] += end_of_round_rewards_arr[i]
@@ -717,7 +717,7 @@ class BalootMultiAgentEnv(gym.Env):
                 and self.cumulative_scores[0] != self.cumulative_scores[1]:
             self.match_over = True
 
-    def _resolve_sets(self):
+    def _resolve_sets(self, declaring_agent=None):
         self._resolve_sets_by_full_information()
 
     def _set_category(self, set_type):
@@ -745,6 +745,9 @@ class BalootMultiAgentEnv(gym.Env):
             SET_PRIORITY[set_info["type"]],
             self._set_resolution_value(set_info),
         )
+
+    def _set_value_label(self, value):
+        return {11: 'J', 12: 'Q', 13: 'K', 14: 'A'}.get(value, str(value))
 
     def _declare_sets_for_player(self, player):
         if self.set_declaration_done[player]:
@@ -800,10 +803,24 @@ class BalootMultiAgentEnv(gym.Env):
     def _record_set_resolution_reveal(self, player, set_info):
         canonical = create_deck()
         self._reveal_declared_set(player, set_info, canonical)
+        value = self._set_resolution_value(set_info)
+        category = self._set_category(set_info["type"])
+        if self.set_resolution_reveals:
+            best_revealed = max(self.set_resolution_reveals.values(), key=lambda reveal: reveal["key"])
+            if self._set_resolution_key(set_info) > best_revealed["key"]:
+                self.resolution_logs.append(f"Player {player} replies with {self._set_value_label(value)}.")
+            else:
+                self.resolution_logs.append(
+                    f"Player {player} cannot beat {self._set_value_label(best_revealed['value'])}."
+                )
+        else:
+            self.resolution_logs.append(
+                f"Player {player} asks with {self._set_value_label(value)} for {category}."
+            )
         self.set_resolution_reveals[player] = {
             "type": set_info["type"],
-            "category": self._set_category(set_info["type"]),
-            "value": self._set_resolution_value(set_info),
+            "category": category,
+            "value": value,
             "priority": SET_PRIORITY[set_info["type"]],
             "key": self._set_resolution_key(set_info),
         }

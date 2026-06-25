@@ -59,13 +59,30 @@ def get_player_sets(env, human_id):
     declared_info = getattr(env, 'declared_sets_info', None)
     if not declared_info:
         return sets_by_pos
+        
     for p_idx, p_sets in enumerate(declared_info):
         if not p_sets:
             continue
+            
+        if not getattr(env, 'sets_resolved', False):
+            has_played = env.current_trick[p_idx] is not None
+            is_turn = (env.current_agent == p_idx)
+            if not has_played and not is_turn:
+                continue
+
         pos = get_relative_position(p_idx, human_id)
         if pos is None:
             continue
-        sets_by_pos[pos] = [SET_DISPLAY_MAP.get(s["type"], s["type"]) for s in p_sets]
+            
+        pos_sets = []
+        for s in p_sets:
+            name = SET_DISPLAY_MAP.get(s["type"], s["type"])
+            if getattr(env, 'sets_resolved', False) and "cards" in s:
+                cards_str = " ".join([f"{c[0]}{c[1]}" for c in s["cards"]])
+                name = f"{name} ({cards_str})"
+            pos_sets.append(name)
+        sets_by_pos[pos] = pos_sets
+        
     return sets_by_pos
 
 def add_log(msg):
@@ -88,6 +105,10 @@ def run_ai_turn():
     action, _, _ = agent.select_action(local_obs, global_state, mask)
     
     obs_dict, _, dones, _ = env.step(action)
+    if hasattr(env, 'resolution_logs') and env.resolution_logs:
+        game_state["logs"].extend(env.resolution_logs)
+        env.resolution_logs.clear()
+        
     game_state["obs_dict"] = obs_dict
     game_state["done"] = dones.get('__all__', False)
     
@@ -258,6 +279,10 @@ def take_action():
     action = data.get("action_index")
     
     obs_dict, _, dones, _ = env.step(action)
+    if hasattr(env, 'resolution_logs') and env.resolution_logs:
+        game_state["logs"].extend(env.resolution_logs)
+        env.resolution_logs.clear()
+        
     game_state["obs_dict"] = obs_dict
     game_state["done"] = dones.get('__all__', False)
     

@@ -196,6 +196,7 @@ if __name__ == "__main__":
     episodes_completed = 0
 
     print(f"Starting Vectorized Collection with {config['num_workers']} workers...")
+    pbar = tqdm(total=config["num_episodes"], desc="Training MAPPO Vectorized", unit="ep")
     
     while episodes_completed < config["num_episodes"]:
         agent.entropy_coef = get_entropy_coef(episodes_completed)
@@ -207,13 +208,12 @@ if __name__ == "__main__":
                                             "actions", "log_probs", "values", "advantages", "returns"]}
         collected_steps = 0
         futures = []
-
-        # Submit jobs until we meet update_interval
-        jobs_to_submit = max(1, config["update_interval"] // 80) # approx 80 steps per episode
+        jobs_to_submit = max(1, config["update_interval"] // 80)
         
         for _ in range(jobs_to_submit):
             futures.append(executor.submit(run_episode, current_weights, agent.entropy_coef))
 
+        new_episodes = 0
         for future in concurrent.futures.as_completed(futures):
             mem, t0_r, t1_r, steps = future.result()
             
@@ -221,11 +221,14 @@ if __name__ == "__main__":
                 collected_memory[k].extend(mem[k])
                 
             collected_steps += steps
-            episodes_completed += 1
+            new_episodes += 1
 
             with summary_writer.as_default():
-                tf.summary.scalar("Reward/Team0_Episode", t0_r, step=episodes_completed)
-                tf.summary.scalar("Reward/Team1_Episode", t1_r, step=episodes_completed)
+                tf.summary.scalar("Reward/Team0_Episode", t0_r, step=episodes_completed + new_episodes)
+                tf.summary.scalar("Reward/Team1_Episode", t1_r, step=episodes_completed + new_episodes)
+
+        episodes_completed += new_episodes
+        pbar.update(new_episodes)
 
         # Update
         loss, policy_loss, value_loss, entropy = agent.update(collected_memory)
@@ -239,12 +242,17 @@ if __name__ == "__main__":
             tf.summary.scalar("Params/LearningRate", new_lr, step=update_count)
             summary_writer.flush()
 
-        print(f"Update {update_count:4d} (Ep {episodes_completed:5d}) | "
-              f"Loss: {loss:.3f} | Pol: {policy_loss:.3f} | Val: {value_loss:.3f} | "
-              f"Ent: {entropy:.3f} | Collected {collected_steps} steps")
+        pbar.set_postfix({
+            'Loss': f'{loss:.3f}', 
+            'Pol': f'{policy_loss:.3f}', 
+            'Val': f'{value_loss:.3f}', 
+            'Steps': collected_steps
+        })
 
         if update_count % 25 == 0:
             agent.model.save_weights(os.path.join(model_dir, f"mappo_update_{update_count}.h5"))
+
+    pbar.close()
 
     agent.model.save_weights(os.path.join(model_dir, "final_mappo.h5"))
     executor.shutdown()

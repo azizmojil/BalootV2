@@ -974,7 +974,11 @@ class BalootMultiAgentEnv(gym.Env):
                      if self.remaining_cards[c] == 1
                      and np.isclose(self.card_ownership[c, player, agent], 1.0)]
 
-            pool_idxs = known + hidden
+            played_by_player = [c for c in range(32)
+                               if self.remaining_cards[c] == 0
+                               and np.isclose(self.card_ownership[c, player, agent], 1.0)]
+
+            pool_idxs = known + hidden + played_by_player
             pool_cards = [canonical_deck[c] for c in pool_idxs]
             candidates = self._possible_declared_sets(pool_cards, hidden_types)
             if not candidates:

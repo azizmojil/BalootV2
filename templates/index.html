@@ -15,8 +15,6 @@
             --hand-card-overlap: -20px;
             --hand-card-hover-lift: 22px;
             --hand-card-hover-scale: 1.08;
-            --fan-max-deg: 32;
-            --fan-max-offset: 22;
         }
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
 
@@ -123,7 +121,6 @@
         /* ── Opponent hands (side/top) ── */
         .opp-hand {
             display: flex;
-            gap: -8px;
             align-items: center;
             justify-content: center;
         }
@@ -214,8 +211,6 @@
         .thin-scroll::-webkit-scrollbar-track { background: transparent; }
         .thin-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
 
-        /* ── Active player glow ── */
-        .active-seat .seat-label { box-shadow: 0 0 12px rgba(250,204,21,0.5); }
     </style>
 </head>
 <body class="min-h-screen flex flex-col p-3" style="background: #0f172a;">
@@ -530,10 +525,6 @@
                 } else {
                     actEl.innerHTML = '<span class="text-emerald-400 font-bold text-lg">Game Over!</span>';
                 }
-
-                // ── Active player seat highlight ──
-                document.querySelectorAll('.seat').forEach(s => s.classList.remove('active-seat'));
-                // (could highlight current player's seat here if desired)
 
                 // ── Logs ──
                 const logEl = document.getElementById('logs-container');

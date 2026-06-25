@@ -8,12 +8,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --card-w: 64px;
-            --card-h: 92px;
-            --mini-card-w: 34px;
-            --mini-card-h: 48px;
-            --hand-card-overlap: -20px;
-            --hand-card-hover-lift: 22px;
+            --card-w: 84px;
+            --card-h: 120px;
+            --mini-card-w: 40px;
+            --mini-card-h: 56px;
+            --hand-card-overlap: -22px;
+            --hand-card-hover-lift: 26px;
             --hand-card-hover-scale: 1.08;
         }
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
@@ -48,12 +48,12 @@
         .playing-card::after {
             content: attr(data-card);
             position: absolute;
-            font-size: 0.6rem;
+            font-size: 0.72rem;
             line-height: 1;
         }
-        .playing-card::before { top: 4px; left: 4px; }
-        .playing-card::after  { right: 4px; bottom: 4px; transform: rotate(180deg); }
-        .playing-card .card-rank { font-size: 1.3rem; letter-spacing: -0.06em; }
+        .playing-card::before { top: 5px; left: 5px; }
+        .playing-card::after  { right: 5px; bottom: 5px; transform: rotate(180deg); }
+        .playing-card .card-rank { font-size: 1.7rem; letter-spacing: -0.06em; }
         .pixel-red   { color: #dc2626; }
         .pixel-black  { color: #111827; }
         .pixel-gold   { color: #ca8a04; }
@@ -177,8 +177,8 @@
         /* ── Trick center ── */
         .trick-center {
             position: relative;
-            width: 260px;
-            height: 200px;
+            width: 320px;
+            height: 270px;
         }
         .trick-slot {
             position: absolute;
@@ -191,8 +191,8 @@
         .trick-slot.left   { top: 50%; left: 0;   transform: translateY(-50%); }
         .trick-slot.right  { top: 50%; right: 0;   transform: translateY(-50%); }
         .trick-card-space {
-            width: 72px;
-            height: 98px;
+            width: calc(var(--card-w) + 8px);
+            height: calc(var(--card-h) + 6px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -200,11 +200,125 @@
             border-radius: 6px;
             background: rgba(15,23,42,0.15);
         }
-        .trick-slot .playing-card { width: 64px; height: 92px; }
+        .trick-slot .playing-card { width: var(--card-w); height: var(--card-h); }
         .trick-slot.left  .playing-card { transform: rotate(84deg);  }
         .trick-slot.right .playing-card { transform: rotate(-84deg); }
         .trick-slot.top   .playing-card { transform: rotate(180deg); }
         .trick-slot.bottom .playing-card { border-color: #2563eb; }
+        /* Highlight the winning card while the completed trick lingers on the table. */
+        .trick-card-won .playing-card {
+            box-shadow:
+                inset 0 0 0 2px #fef3c7,
+                inset 0 0 0 4px rgba(30,41,59,0.18),
+                3px 3px 0 rgba(0,0,0,0.3),
+                0 0 18px 4px rgba(250,204,21,0.7);
+        }
+
+        /* ── Bid bubble (last bidding action, shown in front of the player) ── */
+        .bid-bubble {
+            position: absolute;
+            z-index: 25;
+            background: #fefce8;
+            color: #1e293b;
+            font-weight: 700;
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            border: 2px solid #1e293b;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
+            white-space: nowrap;
+            pointer-events: none;
+            animation: bid-pop 0.22s ease-out;
+        }
+        .bid-bubble::after {
+            content: '';
+            position: absolute;
+            width: 0; height: 0;
+            border: 6px solid transparent;
+        }
+        .bid-bubble.from-top::after    { bottom: -11px; left: 50%; transform: translateX(-50%); border-top-color: #1e293b; }
+        .bid-bubble.from-bottom::after { top: -11px;    left: 50%; transform: translateX(-50%); border-bottom-color: #1e293b; }
+        .bid-bubble.from-left::after   { right: -11px;  top: 50%;  transform: translateY(-50%); border-left-color: #1e293b; }
+        .bid-bubble.from-right::after  { left: -11px;   top: 50%;  transform: translateY(-50%); border-right-color: #1e293b; }
+        .bid-bubble.pass { background: #e2e8f0; color: #475569; }
+        @keyframes bid-pop {
+            from { transform: scale(0.6); opacity: 0; }
+            to   { transform: scale(1);   opacity: 1; }
+        }
+
+        /* ── Dealer marker ── */
+        .dealer-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 9999px;
+            background: radial-gradient(circle at 35% 30%, #fde68a, #d97706);
+            color: #422006;
+            font-weight: 800;
+            font-size: 0.75rem;
+            border: 2px solid #92400e;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            flex-shrink: 0;
+        }
+
+        /* ── Set declaration badges ── */
+        .set-badges {
+            position: absolute;
+            z-index: 24;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 150px;
+            pointer-events: none;
+        }
+        .set-badge {
+            background: #7c2d12;
+            color: #fed7aa;
+            font-weight: 700;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 6px;
+            border: 1px solid #c2410c;
+            box-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+
+        /* ── End-of-round score animation ── */
+        .score-burst {
+            position: absolute;
+            top: 50%;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        .score-burst.side-left  { left: calc(50% - 280px); transform: translate(-50%, -50%); }
+        .score-burst.side-right { left: calc(50% + 280px); transform: translate(-50%, -50%); }
+        .score-burst .score-team-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: 4px;
+        }
+        .score-burst .score-team-value {
+            font-size: 5.5rem;
+            font-weight: 800;
+            line-height: 1;
+            text-shadow: 0 4px 0 rgba(0,0,0,0.4), 0 0 28px currentColor;
+            animation: score-burst-in 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        .score-burst.you  { color: #34d399; }
+        .score-burst.ai   { color: #fb7185; }
+        @keyframes score-burst-in {
+            0%   { transform: scale(0.2); opacity: 0; }
+            60%  { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
 
         /* ── Scrollbar ── */
         .thin-scroll::-webkit-scrollbar { height: 4px; }
@@ -238,9 +352,9 @@
 
     <!-- Game info bar -->
     <div id="game-info" class="flex justify-between items-center bg-slate-800/50 px-4 py-2 rounded-lg mb-3 border border-slate-700 hidden text-sm">
-        <div class="flex gap-5">
+        <div class="flex gap-5 items-center">
             <div><span class="text-slate-400">Phase:</span> <span id="phase" class="font-semibold text-yellow-400"></span></div>
-            <div><span class="text-slate-400">Dealer:</span> <span id="dealer" class="font-semibold"></span></div>
+            <div class="flex items-center gap-1.5"><span class="text-slate-400">Dealer:</span> <span class="dealer-chip">D</span> <span id="dealer" class="font-semibold"></span></div>
         </div>
         <div id="contract-info" class="hidden flex gap-4 text-xs bg-slate-900/50 px-3 py-1.5 rounded-lg">
             <div>Contract: <span id="contract" class="font-bold text-yellow-400"></span></div>
@@ -249,24 +363,44 @@
         </div>
     </div>
 
-    <!-- Main content: Table + Sidebar -->
+    <!-- Main content: Table -->
     <div class="flex flex-1 gap-4 min-h-0">
         <main class="flex-1 flex flex-col min-h-0">
             <!-- ═══ THE TABLE ═══ -->
-            <div class="table-felt rounded-[40px] flex-1 flex flex-col items-center justify-between p-4 relative min-h-[480px]">
+            <div class="table-felt rounded-[40px] flex-1 flex flex-col items-center justify-between p-4 relative min-h-[560px]">
+
+                <!-- ── End-of-round score animation (shown on both sides of the table center) ── -->
+                <div id="score-burst-left" class="score-burst side-left you hidden">
+                    <div class="score-team-label">You</div>
+                    <div id="score-value-left" class="score-team-value">0</div>
+                </div>
+                <div id="score-burst-right" class="score-burst side-right ai hidden">
+                    <div class="score-team-label">AI</div>
+                    <div id="score-value-right" class="score-team-value">0</div>
+                </div>
 
                 <!-- ── Top seat: Teammate ── -->
-                <div id="seat-teammate" class="seat">
-                    <div class="seat-label bg-emerald-900/60 text-emerald-300 border border-emerald-700/40">Teammate</div>
+                <div id="seat-teammate" class="seat relative">
+                    <div class="flex items-center gap-2">
+                        <div class="seat-label bg-emerald-900/60 text-emerald-300 border border-emerald-700/40">Teammate</div>
+                        <div id="dealer-teammate" class="dealer-chip hidden">D</div>
+                    </div>
                     <div id="hand-teammate" class="opp-hand"></div>
+                    <div id="bid-teammate" class="bid-bubble from-top hidden" style="top: 100%; left: 50%; transform: translate(-50%, 8px);"></div>
+                    <div id="sets-teammate" class="set-badges" style="top: 100%; left: 50%; transform: translate(-50%, 8px);"></div>
                 </div>
 
                 <!-- ── Middle row: Left / Trick center / Right ── -->
                 <div class="flex items-center justify-between w-full flex-1">
                     <!-- Left seat -->
-                    <div id="seat-left" class="seat">
-                        <div class="seat-label bg-rose-900/60 text-rose-300 border border-rose-700/40">Left</div>
+                    <div id="seat-left" class="seat relative">
+                        <div class="flex items-center gap-2">
+                            <div class="seat-label bg-rose-900/60 text-rose-300 border border-rose-700/40">Left</div>
+                            <div id="dealer-left" class="dealer-chip hidden">D</div>
+                        </div>
                         <div id="hand-left" class="opp-hand-vertical"></div>
+                        <div id="bid-left" class="bid-bubble from-left hidden" style="left: 100%; top: 50%; transform: translate(12px, -50%);"></div>
+                        <div id="sets-left" class="set-badges" style="left: 100%; top: 50%; transform: translate(12px, -50%);"></div>
                     </div>
 
                     <!-- Center: Bidding OR Trick area -->
@@ -297,16 +431,26 @@
                     </div>
 
                     <!-- Right seat -->
-                    <div id="seat-right" class="seat">
-                        <div class="seat-label bg-rose-900/60 text-rose-300 border border-rose-700/40">Right</div>
+                    <div id="seat-right" class="seat relative">
+                        <div class="flex items-center gap-2">
+                            <div id="dealer-right" class="dealer-chip hidden">D</div>
+                            <div class="seat-label bg-rose-900/60 text-rose-300 border border-rose-700/40">Right</div>
+                        </div>
                         <div id="hand-right" class="opp-hand-vertical"></div>
+                        <div id="bid-right" class="bid-bubble from-right hidden" style="right: 100%; top: 50%; transform: translate(-12px, -50%);"></div>
+                        <div id="sets-right" class="set-badges" style="right: 100%; top: 50%; transform: translate(-12px, -50%);"></div>
                     </div>
                 </div>
 
                 <!-- ── Bottom seat: You ── -->
-                <div id="seat-you" class="seat w-full">
+                <div id="seat-you" class="seat w-full relative">
+                    <div id="bid-you" class="bid-bubble from-bottom hidden" style="bottom: 100%; left: 50%; transform: translate(-50%, -8px);"></div>
+                    <div id="sets-you" class="set-badges" style="bottom: 100%; left: 50%; transform: translate(-50%, -8px);"></div>
                     <div id="player-hand" class="hand-wrap"></div>
-                    <div class="seat-label bg-blue-900/60 text-blue-300 border border-blue-700/40">You</div>
+                    <div class="flex items-center gap-2">
+                        <div class="seat-label bg-blue-900/60 text-blue-300 border border-blue-700/40">You</div>
+                        <div id="dealer-you" class="dealer-chip hidden">D</div>
+                    </div>
                 </div>
             </div>
 
@@ -324,20 +468,27 @@
                 <div id="past-tricks-list" class="flex gap-3 overflow-x-auto pb-1 thin-scroll"></div>
             </div>
         </main>
-
-        <!-- Sidebar: Logs -->
-        <aside class="w-64 flex flex-col bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden shrink-0">
-            <div class="bg-slate-800 p-2.5 border-b border-slate-700 font-semibold text-xs">Game Logs</div>
-            <div id="logs-container" class="flex-1 p-3 overflow-y-auto text-xs flex flex-col gap-1.5 font-mono h-[500px]"></div>
-        </aside>
     </div>
 
     <script>
         let pollTimer = null;
         const AI_TURN_DELAY_MS = 1000;
+        const TRICK_HOLD_MS = 3000;
         const FAN_MAX_DEG = 32;
         const FAN_MAX_OFFSET = 22;
         const HTML_ESCAPE_CHARS = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;', '`':'&#96;' };
+
+        // Position keys ("you"/"right"/"teammate"/"left") used to anchor seat-specific UI.
+        const POS_KEYS = ['you', 'right', 'teammate', 'left'];
+        // Map backend display names to position keys (trick / last_trick use display names).
+        const NAME_TO_POS = { "You":"you", "Your Right":"right", "Teammate":"teammate", "Your Left":"left" };
+        const TRICK_SLOT = { you:"trick-you", right:"trick-right", teammate:"trick-teammate", left:"trick-left" };
+
+        // ── Round/trick progression tracking (for animations & trick hold) ──
+        let lastRound = null;
+        let prevTrickCount = 0;
+        let trickHoldUntil = 0;     // timestamp until which the completed trick stays on the table
+        let heldTrick = null;       // cached last_trick + winner being displayed during the hold
 
         function escapeHtml(s) { return String(s||'').replace(/[&<>"'`]/g, c => HTML_ESCAPE_CHARS[c]); }
 
@@ -374,6 +525,106 @@
             return `<span class="text-yellow-400">${str}</span>`;
         }
 
+        function clearTrickSlots() {
+            POS_KEYS.forEach(pos => {
+                const el = document.getElementById(TRICK_SLOT[pos]);
+                el.innerHTML = '';
+                el.parentElement.classList.remove('trick-card-won');
+            });
+        }
+
+        // Render a list of {player, card} into the trick slots, optionally highlighting the winner.
+        function renderTrickCards(cards, winnerPos) {
+            clearTrickSlots();
+            (cards || []).forEach(t => {
+                const pos = NAME_TO_POS[t.player];
+                if (!pos || !t.card) return;
+                const slotEl = document.getElementById(TRICK_SLOT[pos]);
+                slotEl.innerHTML = renderPixelCard(t.card);
+                if (winnerPos && pos === winnerPos) {
+                    slotEl.parentElement.classList.add('trick-card-won');
+                }
+            });
+        }
+
+        // Show the most recent bid for each player, anchored in front of their seat.
+        function renderBidBubbles(lastBids) {
+            POS_KEYS.forEach(pos => {
+                const el = document.getElementById(`bid-${pos}`);
+                if (!el) return;
+                const bid = lastBids ? lastBids[pos] : null;
+                if (bid) {
+                    el.textContent = bid;
+                    el.classList.toggle('pass', String(bid).toLowerCase() === 'pass');
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
+        }
+
+        function clearBidBubbles() {
+            POS_KEYS.forEach(pos => {
+                const el = document.getElementById(`bid-${pos}`);
+                if (el) el.classList.add('hidden');
+            });
+        }
+
+        // Highlight the dealer's seat with a marker chip.
+        function renderDealerMarker(dealerPos) {
+            POS_KEYS.forEach(pos => {
+                const el = document.getElementById(`dealer-${pos}`);
+                if (el) el.classList.toggle('hidden', pos !== dealerPos);
+            });
+        }
+
+        // Set declarations next to declaring players. Backend only sends sets that should be
+        // visible (winning team's), so we just gate by round: round 1 (trick_count 0) and
+        // round 2 (trick_count 1) show them; later they are hidden.
+        function renderSetBadges(playerSets, trickCount) {
+            const show = trickCount <= 1;
+            POS_KEYS.forEach(pos => {
+                const el = document.getElementById(`sets-${pos}`);
+                if (!el) return;
+                const sets = (show && playerSets) ? playerSets[pos] : null;
+                if (sets && sets.length) {
+                    el.innerHTML = sets.map(s => `<span class="set-badge">${escapeHtml(s)}</span>`).join('');
+                } else {
+                    el.innerHTML = '';
+                }
+            });
+        }
+
+        function clearSetBadges() {
+            POS_KEYS.forEach(pos => {
+                const el = document.getElementById(`sets-${pos}`);
+                if (el) el.innerHTML = '';
+            });
+        }
+
+        // Big score animation on both sides of the table after a round completes.
+        function showScoreBurst(score) {
+            if (!Array.isArray(score)) return;
+            const left = document.getElementById('score-burst-left');
+            const right = document.getElementById('score-burst-right');
+            document.getElementById('score-value-left').textContent = score[0];
+            document.getElementById('score-value-right').textContent = score[1];
+            left.classList.remove('hidden');
+            right.classList.remove('hidden');
+            // Restart the pop animation.
+            [left, right].forEach(b => {
+                const v = b.querySelector('.score-team-value');
+                v.style.animation = 'none';
+                void v.offsetWidth;
+                v.style.animation = '';
+            });
+        }
+
+        function hideScoreBurst() {
+            document.getElementById('score-burst-left').classList.add('hidden');
+            document.getElementById('score-burst-right').classList.add('hidden');
+        }
+
         async function fetchModels() {
             try {
                 const res = await fetch('/models');
@@ -393,6 +644,13 @@
 
         async function startGame() {
             clearTimeout(pollTimer);
+            lastRound = null;
+            prevTrickCount = 0;
+            trickHoldUntil = 0;
+            heldTrick = null;
+            hideScoreBurst();
+            clearBidBubbles();
+            clearSetBadges();
             const model = document.getElementById('model-select').value;
             document.getElementById('actions-container').innerHTML = '<span class="text-slate-500 italic animate-pulse text-sm">Initializing...</span>';
             const res = await fetch('/start', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model}) });
@@ -413,12 +671,25 @@
                 if (!res.ok) return;
                 const state = await res.json();
                 const isHumanTurn = state.is_human_turn && !state.done;
+                const now = Date.now();
+                const holdActive = now < trickHoldUntil;
 
                 document.getElementById('game-info').classList.remove('hidden');
                 document.getElementById('score-t0').innerText = state.scores[0];
                 document.getElementById('score-t1').innerText = state.scores[1];
                 document.getElementById('phase').innerText = state.phase.toUpperCase();
                 document.getElementById('dealer').innerText = state.dealer;
+
+                // ── Dealer marker ──
+                renderDealerMarker(state.dealer_position);
+
+                // ── End-of-round score animation ──
+                if (lastRound === null) {
+                    lastRound = state.round;
+                } else if (state.round > lastRound) {
+                    lastRound = state.round;
+                    if (state.last_round_score) showScoreBurst(state.last_round_score);
+                }
 
                 // ── Opponent hands (face-down cards) ──
                 const counts = state.opponent_hand_counts || {};
@@ -433,6 +704,12 @@
                     document.getElementById('contract-info').classList.add('hidden');
                     document.getElementById('past-tricks-container').classList.add('hidden');
                     setPixelCardElement(document.getElementById('face-up-card'), state.face_up, 'mx-auto');
+                    // Last bid in front of each player; clear any leftover set badges.
+                    renderBidBubbles(state.last_bids);
+                    clearSetBadges();
+                    prevTrickCount = 0;
+                    trickHoldUntil = 0;
+                    heldTrick = null;
                 } else {
                     document.getElementById('bidding-table').classList.add('hidden');
                     document.getElementById('playing-table').classList.remove('hidden');
@@ -440,15 +717,26 @@
                     document.getElementById('contract').innerText = state.contract || '';
                     document.getElementById('buyer').innerText = state.buyer || '';
                     document.getElementById('trump').innerText = state.trump || 'None';
+                    clearBidBubbles();
+                    hideScoreBurst();
 
-                    // Trick
-                    const positions = { "Teammate":"trick-teammate", "Your Left":"trick-left", "Your Right":"trick-right", "You":"trick-you" };
-                    Object.values(positions).forEach(id => document.getElementById(id).innerHTML = '');
-                    if (state.trick) {
-                        state.trick.forEach(t => {
-                            if (t.card && positions[t.player])
-                                document.getElementById(positions[t.player]).innerHTML = renderPixelCard(t.card);
-                        });
+                    // ── Set declarations / reveals (round 1 & 2 only) ──
+                    renderSetBadges(state.player_sets, state.trick_count || 0);
+
+                    // ── Detect a just-completed trick to hold it briefly on the table ──
+                    const tc = state.trick_count || 0;
+                    if (!holdActive && tc > prevTrickCount && state.last_trick && state.last_trick.some(t => t.card)) {
+                        heldTrick = { cards: state.last_trick, winner: state.last_trick_winner };
+                        trickHoldUntil = now + TRICK_HOLD_MS;
+                    }
+                    prevTrickCount = tc;
+
+                    // ── Render the trick (held completed trick, or the live one) ──
+                    if (now < trickHoldUntil && heldTrick) {
+                        renderTrickCards(heldTrick.cards, heldTrick.winner);
+                    } else {
+                        heldTrick = null;
+                        renderTrickCards(state.trick, null);
                     }
 
                     // Past Tricks
@@ -517,25 +805,24 @@
                         bidEl.appendChild(btn);
                     });
                     actEl.innerHTML = '<span class="text-slate-500 italic text-sm">Choose a bid under the face-up card.</span>';
+                } else if (isHumanTurn && (now < trickHoldUntil)) {
+                    // Human can act, but keep the completed trick on the table a moment first.
+                    actEl.innerHTML = '<span class="text-slate-500 italic text-sm">Collecting trick...</span>';
+                    pollTimer = setTimeout(() => fetchState(), Math.max(trickHoldUntil - now, 0));
                 } else if (isHumanTurn) {
                     actEl.innerHTML = '<span class="text-blue-300 font-semibold text-sm">Click a highlighted card in your hand to play it.</span>';
                 } else if (!state.done) {
-                    actEl.innerHTML = '<span class="text-slate-500 italic animate-pulse text-sm">Waiting for AI turns...</span>';
-                    pollTimer = setTimeout(() => fetchState({ advanceAi: true }), AI_TURN_DELAY_MS);
+                    if (now < trickHoldUntil) {
+                        // Hold the completed trick before advancing the AI.
+                        actEl.innerHTML = '<span class="text-slate-500 italic text-sm">Collecting trick...</span>';
+                        pollTimer = setTimeout(() => fetchState(), Math.max(trickHoldUntil - now, 0));
+                    } else {
+                        actEl.innerHTML = '<span class="text-slate-500 italic animate-pulse text-sm">Waiting for AI turns...</span>';
+                        pollTimer = setTimeout(() => fetchState({ advanceAi: true }), AI_TURN_DELAY_MS);
+                    }
                 } else {
                     actEl.innerHTML = '<span class="text-emerald-400 font-bold text-lg">Game Over!</span>';
                 }
-
-                // ── Logs ──
-                const logEl = document.getElementById('logs-container');
-                logEl.innerHTML = '';
-                state.logs.forEach(log => {
-                    const d = document.createElement('div');
-                    d.className = 'text-slate-300 pb-1.5 border-b border-slate-700/50 last:border-0';
-                    d.innerHTML = formatCardDarkText(log);
-                    logEl.appendChild(d);
-                });
-                logEl.scrollTop = logEl.scrollHeight;
 
             } catch(err) { console.error("Error fetching state:", err); }
         }

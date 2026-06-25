@@ -16,6 +16,9 @@ from env.utils import translate_action, sort_hand_canonical, create_deck
 
 app = Flask(__name__)
 
+# Human-friendly labels for the internal set type identifiers.
+SET_DISPLAY_MAP = {"Sera": "Sira", "Khamseen": "50", "Mia_c": "100", "Mia_s": "100", "Arbamia": "400"}
+
 game_state = {
     "env": None,
     "obs_dict": None,
@@ -32,6 +35,38 @@ def get_relative_name(player_id, human_id):
     if player_id == (human_id + 1) % 4: return "Your Right"
     if player_id == (human_id + 2) % 4: return "Teammate"
     return "Your Left"
+
+def get_relative_position(player_id, human_id):
+    """Stable position key used by the frontend to anchor seat-specific UI."""
+    if player_id is None: return None
+    if player_id == human_id: return "you"
+    if player_id == (human_id + 1) % 4: return "right"
+    if player_id == (human_id + 2) % 4: return "teammate"
+    return "left"
+
+def get_last_bids(env, human_id):
+    """Most recent bid action each player took, keyed by relative position."""
+    last_bids = {}
+    for actor, action in getattr(env, 'bidding_history', []):
+        pos = get_relative_position(actor, human_id)
+        if pos is not None:
+            last_bids[pos] = translate_action(action)
+    return last_bids
+
+def get_player_sets(env, human_id):
+    """Sets to surface per player (only winning-team sets survive _resolve_sets), keyed by position."""
+    sets_by_pos = {}
+    declared_info = getattr(env, 'declared_sets_info', None)
+    if not declared_info:
+        return sets_by_pos
+    for p_idx, p_sets in enumerate(declared_info):
+        if not p_sets:
+            continue
+        pos = get_relative_position(p_idx, human_id)
+        if pos is None:
+            continue
+        sets_by_pos[pos] = [SET_DISPLAY_MAP.get(s["type"], s["type"]) for s in p_sets]
+    return sets_by_pos
 
 def add_log(msg):
     game_state["logs"].append(msg)
@@ -116,23 +151,28 @@ def get_state():
         "scores": env.cumulative_scores,
         "phase": env.phase,
         "dealer": get_relative_name(env.dealer, human_id),
+        "dealer_position": get_relative_position(env.dealer, human_id),
         "trick_leader": get_relative_name(getattr(env, 'trick_leader', None), human_id),
+        "trick_count": getattr(env, 'trick_count', 0),
+        "last_round_score": getattr(env, 'last_round_score', None),
         "done": game_state["done"],
         "is_human_turn": not game_state["done"] and env.current_agent == human_id,
         "logs": game_state["logs"][-15:],
     }
-    
+
     if env.phase == 'bidding':
         face_up_idx = deck.index(env.face_up) if hasattr(env, 'face_up') and env.face_up else None
         state["face_up"] = translate_action(face_up_idx) if face_up_idx is not None else None
         state["buyer"] = get_relative_name(env.buyer, human_id) if hasattr(env, 'buyer') and env.buyer is not None else None
         state["game_type"] = getattr(env, 'game_type', None)
         state["doubling_state"] = getattr(env, 'doubling_state', None)
+        state["last_bids"] = get_last_bids(env, human_id)
     else:
         state["contract"] = getattr(env, 'game_type', None)
         state["buyer"] = get_relative_name(getattr(env, 'buyer', None), human_id)
         state["trump"] = getattr(env, 'trump_suit', None)
         state["doubling_state"] = getattr(env, 'doubling_state', None)
+        state["player_sets"] = get_player_sets(env, human_id)
         
         trick = []
         for p_idx, card in enumerate(getattr(env, 'current_trick', [])):
@@ -142,6 +182,20 @@ def get_state():
             else:
                 trick.append({"player": p_name, "card": None})
         state["trick"] = trick
+
+        # Last completed trick, so the frontend can hold it on the table briefly before clearing.
+        last_trick = []
+        for p_idx, card in enumerate(getattr(env, 'last_trick', []) or []):
+            if card:
+                last_trick.append({"player": get_relative_name(p_idx, human_id),
+                                   "card": translate_action(deck.index(card))})
+            else:
+                last_trick.append({"player": get_relative_name(p_idx, human_id), "card": None})
+        state["last_trick"] = last_trick
+        last_winner = None
+        if getattr(env, 'trick_history', None):
+            last_winner = env.trick_history[-1].get("winner")
+        state["last_trick_winner"] = get_relative_position(last_winner, human_id) if last_winner is not None else None
 
         trick_history = []
         for i, trick_data in enumerate(getattr(env, 'trick_history', [])):

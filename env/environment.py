@@ -112,6 +112,7 @@ class BalootMultiAgentEnv(gym.Env):
         self.set_declaration_done = [False] * 4
         self.sets_resolved = False
         self.set_resolution_reveals = {}
+        self.public_revealed_set_keys = [set() for _ in range(4)]
         self.balot = [False] * 4
         self.detect_balot = [None] * 4
         self.team_bant = [0, 0]
@@ -487,12 +488,7 @@ class BalootMultiAgentEnv(gym.Env):
             if not self.sets_resolved:
                 self._resolve_sets_by_second_trick_reveals(agent)
             for s in self.declared_sets_info[agent]:
-                sets_list = list(SET_PRIORITY.keys())
-                i = sets_list.index(s["type"])
-                self.revealed_sets[agent, i] += 1.0
-                for card in s["cards"]:
-                    idx = canonical.index(card)
-                    self._set_known_card_owner(idx, agent)
+                self._reveal_declared_set(agent, s, canonical)
 
         chosen_card = canonical[action]
         had_trick_suit = (
@@ -802,6 +798,8 @@ class BalootMultiAgentEnv(gym.Env):
             self._filter_declared_sets_to_team(candidate_teams.pop())
 
     def _record_set_resolution_reveal(self, player, set_info):
+        canonical = create_deck()
+        self._reveal_declared_set(player, set_info, canonical)
         self.set_resolution_reveals[player] = {
             "type": set_info["type"],
             "category": self._set_category(set_info["type"]),
@@ -809,6 +807,29 @@ class BalootMultiAgentEnv(gym.Env):
             "priority": SET_PRIORITY[set_info["type"]],
             "key": self._set_resolution_key(set_info),
         }
+
+    def _revealed_set_key(self, set_info):
+        return (
+            set_info["type"],
+            tuple(sorted(tuple(card) for card in set_info["cards"])),
+        )
+
+    def _reveal_declared_set(self, player, set_info, canonical=None):
+        if canonical is None:
+            canonical = create_deck()
+
+        reveal_key = self._revealed_set_key(set_info)
+        if reveal_key in self.public_revealed_set_keys[player]:
+            return
+
+        sets_list = list(SET_PRIORITY.keys())
+        i = sets_list.index(set_info["type"])
+        self.revealed_sets[player, i] += 1.0
+        self.public_revealed_set_keys[player].add(reveal_key)
+
+        for card in set_info["cards"]:
+            idx = canonical.index(card)
+            self._set_known_card_owner(idx, player)
 
     def _resolve_sets_by_second_trick_reveals(self, start_player):
         candidates = self._top_set_candidates()

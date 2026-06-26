@@ -10,6 +10,7 @@ REWARD_WIN_TRICK_BASE = 0.05
 REWARD_TRICK_POINT_SCALAR = 0.002
 
 REWARD_ALL_PASS_PENALTY = -0.1
+REWARD_TAKWEESH_ACTION = 20.0
 
 
 SUN_CARD_POINTS = {'A': 11, '10': 10, 'K': 4, 'Q': 3, 'J': 2, '9': 0, '8': 0, '7': 0}
@@ -223,7 +224,7 @@ def calculate_bidding_reward(env, agent_id, action):
         return _reward_for_hukoom_bid(strengths, BIDDING_SUIT_ACTIONS[action])
 
     if action == TAKWEESH_ACTION:
-        return 0.12
+        return REWARD_TAKWEESH_ACTION
 
     return 0.0
 

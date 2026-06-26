@@ -64,11 +64,13 @@ def get_player_sets(env, human_id):
         if not p_sets:
             continue
             
-        if not getattr(env, 'sets_resolved', False):
-            has_played = env.current_trick[p_idx] is not None
-            is_turn = (env.current_agent == p_idx)
-            if not has_played and not is_turn:
-                continue
+        has_played = env.current_trick[p_idx] is not None
+        is_turn = (env.current_agent == p_idx)
+        should_reveal = has_played or is_turn
+        
+        sets_resolved = getattr(env, 'sets_resolved', False)
+        if not sets_resolved and not should_reveal:
+            continue
 
         pos = get_relative_position(p_idx, human_id)
         if pos is None:
@@ -77,9 +79,10 @@ def get_player_sets(env, human_id):
         pos_sets = []
         for s in p_sets:
             name = SET_DISPLAY_MAP.get(s["type"], s["type"])
-            if getattr(env, 'sets_resolved', False) and "cards" in s:
-                cards_str = " ".join([f"{c[0]}{c[1]}" for c in s["cards"]])
-                name = f"{name} ({cards_str})"
+            if sets_resolved and should_reveal:
+                if "cards" in s:
+                    cards_str = " ".join([f"{c[0]}{c[1]}" for c in s["cards"]])
+                    name = f"{name} ({cards_str})"
             pos_sets.append(name)
         sets_by_pos[pos] = pos_sets
         

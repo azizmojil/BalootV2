@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
-from utils import require_positive_int
+from env.utils import require_positive_int
 
 class MAPPOAgent:
     def __init__(self, local_obs_dim, global_state_dim, act_dim, model_builder,

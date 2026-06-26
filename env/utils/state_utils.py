@@ -1,11 +1,11 @@
 import numpy as np
 from gymnasium import spaces
 from env.constants import BID_ACTIONS, RANKS, SUITS, TARGET_SCORE
-from env.utils import (
+from env.utils.observation_validation import (
     OBSERVATION_SCHEMA,
     OBSERVATION_TRICK_HISTORY_LENGTH,
-    one_hot_index,
 )
+from env.utils.cards import one_hot_index
 
 
 def require_positive_int(value, name):

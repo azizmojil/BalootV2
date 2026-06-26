@@ -4,7 +4,7 @@ from tensorflow.keras.layers import Input, Dense, Concatenate, Embedding, Flatte
 from tensorflow.keras.initializers import Orthogonal, Zeros
 from tensorflow.keras.models import Model
 from env.utils import OBSERVATION_SCHEMA
-from utils import require_positive_int
+from env.utils import require_positive_int
 
 
 CARD_VECTOR_KEYS = ("faceup_card", "own_hand", "played_cards", "unknown_cards")

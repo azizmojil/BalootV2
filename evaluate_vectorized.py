@@ -25,7 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 from env.environment import BalootMultiAgentEnv
 from agents.mappo_agent import MAPPOAgent
 from model import build_mappo_network
-from utils import flatten_obs, get_global_state, infer_model_dimensions
+from env.utils import flatten_obs, get_global_state, infer_model_dimensions
 
 if __name__ == "__main__":
     import multiprocessing as mp

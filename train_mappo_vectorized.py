@@ -193,7 +193,25 @@ if __name__ == "__main__":
                        entropy_coef=config["start_entropy"], strategy=strategy)
 
     if args.resume:
-        agent.model.load_weights(args.resume)
+        try:
+            agent.model.load_weights(args.resume)
+        except ValueError as e:
+            if "expected" in str(e) and "variables" in str(e):
+                print("Architecture mismatch detected. Attempting to transfer weights via old architecture...")
+                from model import build_old_mappo_network
+                old_model = build_old_mappo_network(local_obs_dim, global_state_dim, act_dim)
+                old_model.load_weights(args.resume)
+                for new_layer in agent.model.layers:
+                    if not new_layer.weights:
+                        continue
+                    try:
+                        old_layer = old_model.get_layer(name=new_layer.name)
+                        new_layer.set_weights(old_layer.get_weights())
+                    except ValueError:
+                        print(f"Warning: Could not transfer weights for layer {new_layer.name}")
+                print("Weights transferred successfully.")
+            else:
+                raise
 
     run_name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-MAPPO-Vectorized"
     log_dir = os.path.join("logs", "monitor", run_name)

@@ -114,7 +114,19 @@ def main(args):
     local_obs_dim, global_state_dim, act_dim = infer_model_dimensions(dummy_env, sample_obs)
     
     agent0 = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network)
-    agent0.model.load_weights(args.model1)
+    try:
+        agent0.model.load_weights(args.model1)
+    except ValueError as e:
+        print("Architecture mismatch for Model 1. Transferring weights via old architecture...")
+        from model import build_old_mappo_network
+        old_model = build_old_mappo_network(local_obs_dim, global_state_dim, act_dim)
+        old_model.load_weights(args.model1)
+        for new_layer in agent0.model.layers:
+            if new_layer.weights:
+                try:
+                    new_layer.set_weights(old_model.get_layer(name=new_layer.name).get_weights())
+                except ValueError:
+                    pass
     weights0 = agent0.model.get_weights()
     print(f"Team 0 loaded model: {args.model1}")
 
@@ -123,7 +135,19 @@ def main(args):
         print("Team 1 loaded model: Random Agent")
     else:
         agent1 = MAPPOAgent(local_obs_dim, global_state_dim, act_dim, build_mappo_network)
-        agent1.model.load_weights(args.model2)
+        try:
+            agent1.model.load_weights(args.model2)
+        except ValueError as e:
+            print("Architecture mismatch for Model 2. Transferring weights via old architecture...")
+            from model import build_old_mappo_network
+            old_model = build_old_mappo_network(local_obs_dim, global_state_dim, act_dim)
+            old_model.load_weights(args.model2)
+            for new_layer in agent1.model.layers:
+                if new_layer.weights:
+                    try:
+                        new_layer.set_weights(old_model.get_layer(name=new_layer.name).get_weights())
+                    except ValueError:
+                        pass
         weights1 = agent1.model.get_weights()
         print(f"Team 1 loaded model: {args.model2}")
 

@@ -59,12 +59,16 @@ def run_eval_games(weights0, weights1, num_games):
     """Worker function to simulate a set of games."""
     global worker_env, worker_agent0, worker_agent1
     
-    worker_agent0.model.set_weights(weights0)
+    if weights0 == "random":
+        use_random0 = True
+    else:
+        use_random0 = False
+        worker_agent0.model.set_weights(weights0)
     
     if weights1 == "random":
-        use_random = True
+        use_random1 = True
     else:
-        use_random = False
+        use_random1 = False
         worker_agent1.model.set_weights(weights1)
 
     t0_wins = 0
@@ -80,11 +84,15 @@ def run_eval_games(weights0, weights1, num_games):
             mask = obs_dict["action_mask"]
             
             if current_player in [0, 2]:
-                local_obs = flatten_obs(obs_dict, worker_env.observation_space)
-                global_state = get_global_state(worker_env)
-                action, _, _ = worker_agent0.select_action(local_obs, global_state, mask, deterministic=True)
+                if use_random0:
+                    valid_actions = np.where(mask == 1)[0]
+                    action = np.random.choice(valid_actions)
+                else:
+                    local_obs = flatten_obs(obs_dict, worker_env.observation_space)
+                    global_state = get_global_state(worker_env)
+                    action, _, _ = worker_agent0.select_action(local_obs, global_state, mask, deterministic=True)
             else:
-                if use_random:
+                if use_random1:
                     valid_actions = np.where(mask == 1)[0]
                     action = np.random.choice(valid_actions)
                 else:

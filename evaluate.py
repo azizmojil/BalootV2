@@ -65,7 +65,6 @@ def main(args):
 
     team0_wins = 0
     team1_wins = 0
-    draws = 0
 
     print(f"\nSimulating {args.games} games...")
     
@@ -100,15 +99,12 @@ def main(args):
             team0_wins += 1
         elif final_score_t1 > final_score_t0:
             team1_wins += 1
-        else:
-            draws += 1
 
     print("\n" + "="*40)
     print("EVALUATION RESULTS")
     print("="*40)
     print(f"Team 0 (Model 1): {team0_wins} wins ({team0_wins/args.games*100:.1f}%)")
     print(f"Team 1 (Model 2): {team1_wins} wins ({team1_wins/args.games*100:.1f}%)")
-    print(f"Draws:            {draws} ({draws/args.games*100:.1f}%)")
     print("="*40)
 
 if __name__ == "__main__":

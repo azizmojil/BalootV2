@@ -73,7 +73,6 @@ def run_eval_games(weights0, weights1, num_games):
 
     t0_wins = 0
     t1_wins = 0
-    draws = 0
 
     for _ in range(num_games):
         obs_dict = worker_env.reset()
@@ -110,10 +109,8 @@ def run_eval_games(weights0, weights1, num_games):
             t0_wins += 1
         elif final_score_t1 > final_score_t0:
             t1_wins += 1
-        else:
-            draws += 1
 
-    return t0_wins, t1_wins, draws
+    return t0_wins, t1_wins
 
 def load_weights_robustly(model_path, local_obs_dim, global_state_dim, act_dim):
     if model_path.lower() == "random":
@@ -181,19 +178,18 @@ def main(args):
             print(f"\nMatchup {current_matchup}/{total_matchups}: {model_names[i]} (T0) vs {model_names[j]} (T1)")
             
             if i == j and model_names[i] == "Random":
-                t0_wins, t1_wins, draws = args.games // 2, args.games // 2, args.games % 2
+                t0_wins, t1_wins = args.games // 2, args.games - (args.games // 2)
             else:
                 futures = []
                 for g in distribution:
                     if g > 0:
                         futures.append(executor.submit(run_eval_games, all_weights[i], all_weights[j], g))
 
-                t0_wins, t1_wins, draws = 0, 0, 0
+                t0_wins, t1_wins = 0, 0
                 for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Evaluating", unit="worker", leave=False):
-                    t0, t1, dr = future.result()
+                    t0, t1 = future.result()
                     t0_wins += t0
                     t1_wins += t1
-                    draws += dr
             
             win_rate = t0_wins / args.games
             win_matrix[i, j] = win_rate

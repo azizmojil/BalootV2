@@ -68,7 +68,6 @@ def run_eval_games(weights0, weights1, num_games):
 
     t0_wins = 0
     t1_wins = 0
-    draws = 0
 
     for _ in range(num_games):
         obs_dict = worker_env.reset()
@@ -101,10 +100,8 @@ def run_eval_games(weights0, weights1, num_games):
             t0_wins += 1
         elif final_score_t1 > final_score_t0:
             t1_wins += 1
-        else:
-            draws += 1
 
-    return t0_wins, t1_wins, draws
+    return t0_wins, t1_wins
 
 def main(args):
     # Dummy setup to extract weights in main thread
@@ -164,7 +161,6 @@ def main(args):
     
     team0_wins = 0
     team1_wins = 0
-    draws = 0
 
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_workers, initializer=init_worker)
     
@@ -176,11 +172,10 @@ def main(args):
     pbar = tqdm(total=args.games, desc="Evaluating", unit="game")
     
     for future in concurrent.futures.as_completed(futures):
-        t0, t1, dr = future.result()
+        t0, t1 = future.result()
         team0_wins += t0
         team1_wins += t1
-        draws += dr
-        pbar.update(t0 + t1 + dr)
+        pbar.update(t0 + t1)
 
     pbar.close()
     executor.shutdown()
@@ -190,7 +185,6 @@ def main(args):
     print("="*40)
     print(f"Team 0 (Model 1): {team0_wins} wins ({team0_wins/args.games*100:.1f}%)")
     print(f"Team 1 (Model 2): {team1_wins} wins ({team1_wins/args.games*100:.1f}%)")
-    print(f"Draws:            {draws} ({draws/args.games*100:.1f}%)")
     print("="*40)
 
 if __name__ == "__main__":

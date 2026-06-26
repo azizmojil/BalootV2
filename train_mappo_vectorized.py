@@ -25,7 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from env.environment import BalootMultiAgentEnv
 from agents.mappo_agent import MAPPOAgent
 from model import build_mappo_network
-from env.utils import flatten_obs, get_global_state, infer_model_dimensions
+from env.utils.state_utils import flatten_obs, get_global_state, infer_model_dimensions
 
 config = {
     "num_episodes": 10000,

@@ -216,6 +216,7 @@ class MAPPOAgent:
         total_loss, total_policy_loss, total_value_loss, total_entropy = 0.0, 0.0, 0.0, 0.0
         total_kl, total_clip_fraction = 0.0, 0.0
         num_batches = 0
+        target_kl = 0.015
         for epoch in range(self.epochs):
             for batch_data in dist_dataset:
                 loss, policy_loss, value_loss, entropy, approx_kl, clip_fraction = distributed_train_step(batch_data)
@@ -226,6 +227,10 @@ class MAPPOAgent:
                 total_kl += approx_kl
                 total_clip_fraction += clip_fraction
                 num_batches += 1
+            
+            if (total_kl / num_batches) > target_kl * 1.5:
+                # Early stopping to prevent policy collapse
+                break
 
         avg_loss = total_loss / num_batches
         avg_policy_loss = total_policy_loss / num_batches

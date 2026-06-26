@@ -137,7 +137,8 @@ def build_mappo_network(local_obs_dim, global_state_dim, act_dim):
     global_net = LayerNormalization()(global_net)
     global_net = LeakyReLU(alpha=0.01)(global_net)
     
-    critic_concat = Concatenate()([tf.stop_gradient(local_features), global_net])
+    stopped_local_features = Lambda(lambda x: tf.stop_gradient(x), name="stopped_local_features")(local_features)
+    critic_concat = Concatenate()([stopped_local_features, global_net])
     critic_net = Dense(512, kernel_initializer=hidden_init(), bias_initializer=bias_init)(critic_concat)
     critic_net = LayerNormalization()(critic_net)
     critic_net = LeakyReLU(alpha=0.01)(critic_net)

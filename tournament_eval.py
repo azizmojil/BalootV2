@@ -215,7 +215,8 @@ def main(args):
     print("Row = Team 0, Column = Team 1")
     print("="*80)
     
-    header = f"{'T0 \ T1':>15} | " + " | ".join([f"{name[:10]:>10}" for name in model_names])
+    header_label = "T0 \\ T1"
+    header = f"{header_label:>15} | " + " | ".join([f"{name[:10]:>10}" for name in model_names])
     print(header)
     print("-" * len(header))
     

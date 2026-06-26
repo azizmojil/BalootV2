@@ -29,17 +29,17 @@ from env.utils.state_utils import flatten_obs, get_global_state, infer_model_dim
 
 config = {
     "num_episodes": 10000,
-    "update_interval": 8192,  # Increased because data collection is much faster!
-    "start_lr": 5e-4,
-    "end_lr": 5e-5,
+    "update_interval": 16384,  # Increased for better gradient estimation
+    "start_lr": 3e-4,
+    "end_lr": 1e-5,
     "gamma": 0.99,
-    "clip_range": 0.25,
-    "epochs": 8,
-    "batch_size": 2048, # Increased batch size for Multi-GPU efficiency
+    "clip_range": 0.20,
+    "epochs": 5,
+    "batch_size": 4096,
     "gae_lambda": 0.95,
     "start_entropy": 0.10,
-    "end_entropy": 0.05,
-    "num_workers": 96  # Reduced slightly to prevent OS thread limits (was 128)
+    "end_entropy": 0.01,
+    "num_workers": 96
 }
 
 NUM_PLAYERS = 4

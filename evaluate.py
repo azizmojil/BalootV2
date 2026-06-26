@@ -56,7 +56,7 @@ def main(args):
             if current_player in [0, 2]:
                 local_obs = flatten_obs(obs_dict, env.observation_space)
                 global_state = get_global_state(env)
-                action, _, _ = agent0.select_action(local_obs, global_state, mask)
+                action, _, _ = agent0.select_action(local_obs, global_state, mask, deterministic=True)
             else:
                 if agent1 is None:
                     valid_actions = np.where(mask == 1)[0]
@@ -64,7 +64,7 @@ def main(args):
                 else:
                     local_obs = flatten_obs(obs_dict, env.observation_space)
                     global_state = get_global_state(env)
-                    action, _, _ = agent1.select_action(local_obs, global_state, mask)
+                    action, _, _ = agent1.select_action(local_obs, global_state, mask, deterministic=True)
             
             obs_dict, _, dones, _ = env.step(action)
             done = dones.get('__all__', False)

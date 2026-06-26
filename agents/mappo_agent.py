@@ -43,7 +43,7 @@ class MAPPOAgent:
             raise ValueError(f"{name} must have shape (batch, {expected_dim}), got {arr.shape}")
 
     @tf.function
-    def _forward_pass(self, local_obs_t, global_state_t, mask_t):
+    def _forward_pass(self, local_obs_t, global_state_t, mask_t, deterministic=False):
         logits, value = self.model([local_obs_t, global_state_t], training=False)
         value = tf.squeeze(value, axis=1)
         
@@ -51,15 +51,20 @@ class MAPPOAgent:
         masked_logits = tf.where(mask_t > 0, logits, very_negative)
         masked_log_probs = tf.nn.log_softmax(masked_logits, axis=1)
 
-        action_tensor = tf.random.categorical(masked_log_probs, num_samples=1)
-        action = tf.squeeze(action_tensor, axis=1)
+        if deterministic:
+            action = tf.argmax(masked_logits, axis=1, output_type=tf.int64)
+        else:
+            action_tensor = tf.random.categorical(masked_log_probs, num_samples=1)
+            action = tf.squeeze(action_tensor, axis=1)
+            
+        action = tf.cast(action, tf.int32)
         
         action_onehot = tf.one_hot(action, self.act_dim)
         log_prob = tf.reduce_sum(action_onehot * masked_log_probs, axis=1)
 
         return action, log_prob, value
 
-    def select_action(self, local_obs, global_state, mask):
+    def select_action(self, local_obs, global_state, mask, deterministic=False):
         local_obs = self._as_vector("local_obs", local_obs, self.local_obs_dim)
         global_state = self._as_vector("global_state", global_state, self.global_state_dim)
         mask = self._as_vector("mask", mask, self.act_dim)
@@ -71,16 +76,16 @@ class MAPPOAgent:
         global_state_t = tf.convert_to_tensor(global_state[None, :], dtype=tf.float32)
         mask_t = tf.convert_to_tensor(mask[None, :], dtype=tf.float32)
         
-        action_t, log_prob_t, value_t = self._forward_pass(local_obs_t, global_state_t, mask_t)
+        action_t, log_prob_t, value_t = self._forward_pass(local_obs_t, global_state_t, mask_t, deterministic=tf.constant(deterministic))
 
         return int(action_t[0].numpy()), log_prob_t[0], value_t[0]
 
-    def select_actions(self, local_obs_batch, global_state_batch, mask_batch):
+    def select_actions(self, local_obs_batch, global_state_batch, mask_batch, deterministic=False):
         local_obs_t = tf.convert_to_tensor(local_obs_batch, dtype=tf.float32)
         global_state_t = tf.convert_to_tensor(global_state_batch, dtype=tf.float32)
         mask_t = tf.convert_to_tensor(mask_batch, dtype=tf.float32)
         
-        actions_t, log_probs_t, values_t = self._forward_pass(local_obs_t, global_state_t, mask_t)
+        actions_t, log_probs_t, values_t = self._forward_pass(local_obs_t, global_state_t, mask_t, deterministic=tf.constant(deterministic))
         return actions_t.numpy(), log_probs_t.numpy(), values_t.numpy()
 
     def compute_advantages_and_returns(self, rewards, dones, values, last_value):

@@ -81,7 +81,7 @@ def run_eval_games(weights0, weights1, num_games):
             if current_player in [0, 2]:
                 local_obs = flatten_obs(obs_dict, worker_env.observation_space)
                 global_state = get_global_state(worker_env)
-                action, _, _ = worker_agent0.select_action(local_obs, global_state, mask)
+                action, _, _ = worker_agent0.select_action(local_obs, global_state, mask, deterministic=True)
             else:
                 if use_random:
                     valid_actions = np.where(mask == 1)[0]
@@ -89,7 +89,7 @@ def run_eval_games(weights0, weights1, num_games):
                 else:
                     local_obs = flatten_obs(obs_dict, worker_env.observation_space)
                     global_state = get_global_state(worker_env)
-                    action, _, _ = worker_agent1.select_action(local_obs, global_state, mask)
+                    action, _, _ = worker_agent1.select_action(local_obs, global_state, mask, deterministic=True)
             
             obs_dict, _, dones, _ = worker_env.step(action)
             done = dones.get('__all__', False)
